@@ -104,8 +104,10 @@ function App() {
         {[['Процессы', ClipboardList], ['Обзор', LayoutDashboard], ['Календарь', CalendarDays]].map(([label, Icon]) => <button key={label} className={`nav-item ${view === label ? 'active' : ''}`} onClick={() => { setView(label); setSelected(null) }}><Icon size={18} /><span>{label}</span>{label === 'Процессы' && <span className="nav-count">{orders.length}</span>}</button>)}
       </nav>
       <div className="nav-label nav-label-spaced">КОМАНДА</div>
-      <button className="nav-item" onClick={() => flash('Раздел команды появится в следующей версии')}><Users size={18} /><span>Сотрудники</span></button>
-      <button className="nav-item" onClick={() => flash('Справочники будут доступны здесь')}><Settings2 size={18} /><span>Справочники</span></button>
+      <nav className="secondary-nav" aria-label="Команда">
+        <button className="nav-item" onClick={() => flash('Раздел команды появится в следующей версии')}><Users size={18} /><span>Сотрудники</span></button>
+        <button className="nav-item" onClick={() => flash('Справочники будут доступны здесь')}><Settings2 size={18} /><span>Справочники</span></button>
+      </nav>
       <div className="sidebar-bottom">
         <button className="user-profile" onClick={() => { const roles = ['Менеджер', 'Замерщик', 'Технолог', 'ЧПУ', 'Монтажник']; setRole(roles[(roles.indexOf(role) + 1) % roles.length]) }} title="Нажмите, чтобы переключить роль в прототипе"><div className="avatar avatar-user">МК</div><div className="user-data"><b>Мария К.</b><small>{role}</small></div><MoreHorizontal size={19} /></button>
       </div>
