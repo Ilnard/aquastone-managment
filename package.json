@@ -9,6 +9,7 @@
     "dev:web": "vite",
     "start": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
+    "deploy": "node scripts/deploy.js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
