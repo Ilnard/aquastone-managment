@@ -158,3 +158,15 @@
   .toolbar-actions > button { min-width: 0; height: 32px; justify-content: center; }
   .table-wrap { position: relative; clear: both; }
 }
+
+.history-list { display: grid; margin-top: 20px; }
+.history-event { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 11px; min-height: 78px; }
+.history-marker { position: relative; display: flex; justify-content: center; }
+.history-marker::after { content: ''; position: absolute; top: 13px; bottom: 0; width: 1px; background: #e5ebe5; }
+.history-event:last-child .history-marker::after { display: none; }
+.history-marker i { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; background: #6e9c78; box-shadow: 0 0 0 3px #eaf2eb; }
+.history-event-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 12px; }
+.history-event-head b { color: #3c493f; font-size: 11px; font-weight: 600; }
+.history-event-head time, .history-event small { color: #929c94; font-size: 9px; }
+.history-event p { margin: 5px 0 4px; color: #657067; font-size: 10px; line-height: 1.5; }
+.history-empty { margin-top: 18px; padding: 18px; border: 1px dashed #e1e8e1; border-radius: 7px; color: #89948b; font-size: 11px; text-align: center; }

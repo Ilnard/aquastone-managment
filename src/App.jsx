@@ -69,7 +69,7 @@ function App() {
     setOrders((items) => items.map((item) => item.id === order.id ? order : item))
     setSelected((item) => item?.id === order.id ? order : item)
     if (staticDemo) return
-    if (dbStatus === 'connected') fetch(`/api/processes/${encodeURIComponent(order.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order) })
+    if (dbStatus === 'connected') fetch(`/api/processes/${encodeURIComponent(order.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...order, updatedBy: role }) })
       .then((response) => { if (!response.ok) throw new Error('Ошибка сохранения') })
       .catch(() => { setDbStatus('offline'); flash('Не удалось сохранить в PostgreSQL. Проверьте подключение.') })
   }
@@ -158,6 +158,7 @@ function Info({ label, value }) { return <div className="info-field"><span>{labe
 function StageTab({ tab, order, flash, canEdit, onUpdate }) {
   const [draft, setDraft] = useState({})
   const [attachments, setAttachments] = useState([])
+  const [history, setHistory] = useState([])
   const [uploading, setUploading] = useState(false)
   const fileInput = useRef(null)
   useEffect(() => setDraft({}), [tab, order.id])
@@ -169,17 +170,26 @@ function StageTab({ tab, order, flash, canEdit, onUpdate }) {
       .catch(() => { if (active) setAttachments([]) })
     return () => { active = false }
   }, [order.id])
+  useEffect(() => {
+    if (tab !== 'История') return
+    let active = true
+    fetch(`/api/processes/${encodeURIComponent(order.id)}/history`)
+      .then((response) => response.ok ? response.json() : [])
+      .then((items) => { if (active) setHistory(items) })
+      .catch(() => { if (active) setHistory([]) })
+    return () => { active = false }
+  }, [tab, order.id])
   const definitions = {
     'Замер': [['Адрес объекта', 'address'], ['Этаж и лифт', 'surveyAccess'], ['Размеры и эскиз', 'measurements'], ['Фаски и вырезы', 'cutouts'], ['Тип раковины', 'sinkType'], ['Цвет раковины', 'sinkColor'], ['Фото объекта', 'surveyPhotos'], ['Особые условия', 'surveyNotes']],
     'Проектирование': [['Технолог', 'technologist'], ['Название клея', 'glue'], ['Чертёж AutoCAD', 'cadFile'], ['Раскрой материала', 'cutPlan'], ['Передача на ЧПУ', 'cncTransfer']],
     'Производство': [['Оператор ЧПУ', 'cncOperator'], ['Раскрой', 'cncCutting'], ['Обработка фасок', 'edgeFinishing'], ['Упаковка', 'packaging'], ['Комментарий производства', 'productionNotes']],
     'Монтаж': [['Телефон заказчика', 'phone'], ['Дата монтажа', 'installationDate'], ['Бригада монтажников', 'installers'], ['Доступ на объект', 'installationAccess'], ['Результат монтажа', 'installationResult'], ['Комментарий монтажников', 'installationNotes']],
-    'История': [['12 октября, 10:24', 'history1'], ['12 октября, 11:05', 'history2'], ['12 октября, 14:32', 'history3']],
   }
-  const values = { history1: `Процесс #${order.id} создан менеджером ${order.manager}`, history2: 'Материал и декор добавлены', history3: 'Замер проведён, ожидается чертёж' }
+  const values = {}
   const fields = (definitions[tab] || []).filter(([, key]) => key !== 'glue' || ['Акрил', 'Кварцевый агломерат'].includes(order.material))
   const save = () => { if (Object.keys(draft).length) onUpdate({ ...order, ...draft }); setDraft({}); flash('Изменения сохранены') }
   const longTextKeys = ['measurements', 'cutouts', 'surveyPhotos', 'surveyNotes', 'cutPlan', 'productionNotes', 'installationNotes']
+  const historyFieldNames = { stage: 'этап', product: 'изделие', material: 'материал', decor: 'декор', client: 'заказчик', phone: 'телефон', address: 'адрес', sinkType: 'тип раковины', sinkColor: 'цвет раковины', glue: 'клей', surveyAccess: 'этаж и лифт', measurements: 'размеры и эскиз', cutouts: 'фаски и вырезы', surveyNotes: 'особые условия замера', cadFile: 'чертёж AutoCAD', cutPlan: 'раскрой материала', cncTransfer: 'передача на ЧПУ', cncOperator: 'оператор ЧПУ', cncCutting: 'раскрой', edgeFinishing: 'обработка фасок', packaging: 'упаковка', productionNotes: 'комментарий производства', installationDate: 'дата монтажа', installers: 'бригада монтажников', installationAccess: 'доступ на объект', installationResult: 'результат монтажа', installationNotes: 'комментарий монтажников', completeness: 'заполнение процесса' }
   const uploadFile = async (event) => {
     const files = [...(event.target.files || [])]
     if (!files.length) return
@@ -208,7 +218,7 @@ function StageTab({ tab, order, flash, canEdit, onUpdate }) {
     } catch (error) { flash(error.message) }
   }
   const relevantAttachments = attachments.filter((file) => file.field_key === (tab === 'Замер' ? 'survey' : tab === 'Проектирование' ? 'design' : file.field_key))
-  return <section className="info-card tab-content-card"><div className="info-card-head"><div><h3>{tab} процесса</h3><p>{canEdit ? 'Вы можете заполнять поля этого этапа.' : 'У этой роли нет прав редактирования этого этапа.'}</p></div>{canEdit && <button onClick={save}><Check size={15} />Сохранить</button>}</div><div className="info-grid">{fields.map(([label, key]) => <div className="info-field" key={key}><span>{label}</span>{canEdit ? key === 'sinkType' ? <select className="inline-edit" value={draft[key] ?? order[key] ?? ''} onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))}><option value="">Не выбран</option><option>Нержавеющая сталь</option><option>Каменная</option></select> : longTextKeys.includes(key) ? <textarea className="inline-edit" rows="2" value={draft[key] ?? order[key] ?? values[key] ?? ''} placeholder="Заполните поле" onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))} /> : <input className="inline-edit" type={key === 'installationDate' ? 'date' : 'text'} value={draft[key] ?? order[key] ?? values[key] ?? ''} placeholder="Заполните поле" onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))} /> : <b>{order[key] || values[key] || 'Не заполнено'}</b>}</div>)}</div>{['Замер', 'Проектирование'].includes(tab) && <div className="attachments-section"><div className="attachments-header"><h4>Файлы процесса</h4>{canEdit && <label className="add-file-button"><input ref={fileInput} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,.dwg,.dxf" onChange={uploadFile} /><Plus size={16} />{uploading ? 'Загружаем…' : 'Добавить файлы'}</label>}</div>{relevantAttachments.length ? <div className="attachments-list">{relevantAttachments.map((file) => <div className="attachment-row" key={file.id}><FileText size={16} /><a href={file.url} target="_blank" rel="noreferrer">{file.original_name}</a><span>{Math.max(1, Math.round(Number(file.file_size) / 1024))} КБ</span>{canEdit && <button onClick={() => deleteAttachment(file)} aria-label={`Удалить ${file.original_name}`}><X size={15} /></button>}</div>)}</div> : <p className="attachments-empty">Фото замера, эскиз или файл раскроя можно приложить сюда.</p>}</div>}</section>
+  return <section className="info-card tab-content-card"><div className="info-card-head"><div><h3>{tab === 'История' ? 'История процесса' : `${tab} процесса`}</h3><p>{tab === 'История' ? 'События и изменения по процессу' : canEdit ? 'Вы можете заполнять поля этого этапа.' : 'У этой роли нет прав редактирования этого этапа.'}</p></div>{tab !== 'История' && canEdit && <button onClick={save}><Check size={15} />Сохранить</button>}</div>{tab === 'История' ? history.length ? <div className="history-list">{history.map((event) => <article className="history-event" key={event.id}><span className="history-marker"><i /></span><div><div className="history-event-head"><b>{event.action === 'created' ? 'Процесс создан' : 'Изменения сохранены'}</b><time>{new Date(event.createdAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}</time></div><p>{event.action === 'created' ? `Процесс #${order.id} создан` : `Изменены поля: ${(event.details?.changedFields || []).map((key) => historyFieldNames[key] || key).join(', ')}`}</p><small>{event.actor}</small></div></article>)}</div> : <div className="history-empty">История пока пуста. Новые изменения будут отображаться здесь.</div> : <div className="info-grid">{fields.map(([label, key]) => <div className="info-field" key={key}><span>{label}</span>{canEdit ? key === 'sinkType' ? <select className="inline-edit" value={draft[key] ?? order[key] ?? ''} onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))}><option value="">Не выбран</option><option>Нержавеющая сталь</option><option>Каменная</option></select> : longTextKeys.includes(key) ? <textarea className="inline-edit" rows="2" value={draft[key] ?? order[key] ?? values[key] ?? ''} placeholder="Заполните поле" onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))} /> : <input className="inline-edit" type={key === 'installationDate' ? 'date' : 'text'} value={draft[key] ?? order[key] ?? values[key] ?? ''} placeholder="Заполните поле" onChange={(e) => setDraft((current) => ({ ...current, [key]: e.target.value }))} /> : <b>{order[key] || values[key] || 'Не заполнено'}</b>}</div>)}</div>}{['Замер', 'Проектирование'].includes(tab) && <div className="attachments-section"><div className="attachments-header"><h4>Файлы процесса</h4>{canEdit && <label className="add-file-button"><input ref={fileInput} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,.dwg,.dxf" onChange={uploadFile} /><Plus size={16} />{uploading ? 'Загружаем…' : 'Добавить файлы'}</label>}</div>{relevantAttachments.length ? <div className="attachments-list">{relevantAttachments.map((file) => <div className="attachment-row" key={file.id}><FileText size={16} /><a href={file.url} target="_blank" rel="noreferrer">{file.original_name}</a><span>{Math.max(1, Math.round(Number(file.file_size) / 1024))} КБ</span>{canEdit && <button onClick={() => deleteAttachment(file)} aria-label={`Удалить ${file.original_name}`}><X size={15} /></button>}</div>)}</div> : <p className="attachments-empty">Фото замера, эскиз или файл раскроя можно приложить сюда.</p>}</div>}</section>
 }
 
 function NewProcessModal({ onClose, onCreate, onDuplicate, orders }) {

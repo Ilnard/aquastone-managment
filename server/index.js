@@ -49,6 +49,27 @@ async function initializeDatabase() {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS process_attachments_process_idx ON process_attachments (process_number, created_at)')
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS process_history (
+      id BIGSERIAL PRIMARY KEY,
+      process_number TEXT NOT NULL REFERENCES processes(process_number) ON DELETE CASCADE,
+      action TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS process_history_process_idx ON process_history (process_number, created_at DESC)')
+  await pool.query(`
+    INSERT INTO process_history (process_number, action, actor, details, created_at)
+    SELECT p.process_number, 'created', COALESCE(p.data->>'manager', 'Менеджер'),
+           jsonb_build_object('processNumber', p.process_number), p.created_at
+    FROM processes p
+    WHERE NOT EXISTS (
+      SELECT 1 FROM process_history h
+      WHERE h.process_number = p.process_number AND h.action = 'created'
+    )
+  `)
   await mkdir(uploadsPath, { recursive: true })
   databaseReady = true
   startupError = null
@@ -82,6 +103,10 @@ app.post('/api/processes', requireDatabase, async (req, res, next) => {
       [id, JSON.stringify(data)],
     )
     const row = rows[0]
+    await pool.query(
+      'INSERT INTO process_history (process_number, action, actor, details) VALUES ($1, $2, $3, $4::jsonb)',
+      [id, 'created', String(data.manager || 'Менеджер'), JSON.stringify({ processNumber: id })],
+    )
     res.status(201).json({ ...row.data, id: row.process_number, createdAt: row.created_at, updatedAt: row.updated_at })
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: `Process #${id} already exists.` })
@@ -93,14 +118,35 @@ app.put('/api/processes/:id', requireDatabase, async (req, res, next) => {
   const id = String(req.params.id || '').trim()
   if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'A process object is required.' })
   try {
-    const data = { ...req.body, id }
+    const { updatedBy, ...processData } = req.body
+    const data = { ...processData, id }
+    const { rows: previousRows } = await pool.query('SELECT data FROM processes WHERE process_number = $1', [id])
+    if (!previousRows.length) return res.status(404).json({ error: `Process #${id} was not found.` })
+    const previous = previousRows[0].data
+    const changedFields = Object.keys(data).filter((key) => key !== 'id' && JSON.stringify(previous[key] ?? null) !== JSON.stringify(data[key] ?? null))
     const { rows } = await pool.query(
       'UPDATE processes SET data = $2::jsonb, updated_at = NOW() WHERE process_number = $1 RETURNING process_number, data, created_at, updated_at',
       [id, JSON.stringify(data)],
     )
     if (!rows.length) return res.status(404).json({ error: `Process #${id} was not found.` })
     const row = rows[0]
+    if (changedFields.length) {
+      await pool.query(
+        'INSERT INTO process_history (process_number, action, actor, details) VALUES ($1, $2, $3, $4::jsonb)',
+        [id, 'updated', String(updatedBy || data.manager || 'Сотрудник'), JSON.stringify({ changedFields })],
+      )
+    }
     res.json({ ...row.data, id: row.process_number, createdAt: row.created_at, updatedAt: row.updated_at })
+  } catch (error) { next(error) }
+})
+
+app.get('/api/processes/:id/history', requireDatabase, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, action, actor, details, created_at FROM process_history WHERE process_number = $1 ORDER BY created_at DESC, id DESC',
+      [req.params.id],
+    )
+    res.json(rows.map((row) => ({ id: row.id, action: row.action, actor: row.actor, details: row.details, createdAt: row.created_at })))
   } catch (error) { next(error) }
 })
 
