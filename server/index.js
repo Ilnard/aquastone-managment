@@ -11,6 +11,7 @@ const app = express()
 const port = Number(process.env.API_PORT || 3001)
 const uploadsPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'uploads')
 const acceptedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.pdf', '.dwg', '.dxf'])
+const employeeRoles = ['Менеджер', 'Замерщик', 'Технолог', 'ЧПУ', 'Монтажник']
 const pool = new Pool({
   host: process.env.PGHOST || '127.0.0.1',
   port: Number(process.env.PGPORT || 5432),
@@ -61,6 +62,16 @@ async function initializeDatabase() {
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS process_history_process_idx ON process_history (process_number, created_at DESC)')
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('Менеджер', 'Замерщик', 'Технолог', 'ЧПУ', 'Монтажник')),
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (name, role)
+    )
+  `)
+  await pool.query(`
     INSERT INTO process_history (process_number, action, actor, details, created_at)
     SELECT p.process_number, 'created', COALESCE(p.data->>'manager', 'Менеджер'),
            jsonb_build_object('processNumber', p.process_number), p.created_at
@@ -85,6 +96,37 @@ app.get('/api/health', (_req, res) => {
   res.status(databaseReady ? 200 : 503).json({ database: databaseReady ? 'connected' : 'disconnected', error: startupError })
 })
 
+app.get('/api/employees', requireDatabase, async (_req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name, role, active FROM employees WHERE active = TRUE ORDER BY name')
+    res.json(rows)
+  } catch (error) { next(error) }
+})
+
+app.post('/api/employees', requireDatabase, async (req, res, next) => {
+  const name = String(req.body?.name || '').trim()
+  const role = String(req.body?.role || '')
+  if (!name) return res.status(400).json({ error: 'Укажите имя сотрудника.' })
+  if (!employeeRoles.includes(role)) return res.status(400).json({ error: 'Выберите корректную роль сотрудника.' })
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO employees (name, role) VALUES ($1, $2)
+       ON CONFLICT (name, role) DO UPDATE SET active = TRUE
+       RETURNING id, name, role, active`,
+      [name, role],
+    )
+    res.status(201).json(rows[0])
+  } catch (error) { next(error) }
+})
+
+app.delete('/api/employees/:id', requireDatabase, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('UPDATE employees SET active = FALSE WHERE id = $1 RETURNING id', [req.params.id])
+    if (!rows.length) return res.status(404).json({ error: 'Сотрудник не найден.' })
+    res.status(204).end()
+  } catch (error) { next(error) }
+})
+
 app.get('/api/processes', requireDatabase, async (_req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT process_number, data, created_at, updated_at FROM processes ORDER BY updated_at DESC')
@@ -98,6 +140,14 @@ app.post('/api/processes', requireDatabase, async (req, res, next) => {
   if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'A process object is required.' })
   try {
     const data = { ...req.body, id }
+    if (!data.manager) return res.status(400).json({ error: 'Назначьте ответственного менеджера.' })
+    if (data.manager) {
+      const { rows: managers } = await pool.query(
+        'SELECT 1 FROM employees WHERE name = $1 AND role = $2 AND active = TRUE',
+        [data.manager, 'Менеджер'],
+      )
+      if (!managers.length) return res.status(400).json({ error: 'Назначьте менеджера из справочника сотрудников.' })
+    }
     const { rows } = await pool.query(
       'INSERT INTO processes (process_number, data) VALUES ($1, $2::jsonb) RETURNING process_number, data, created_at, updated_at',
       [id, JSON.stringify(data)],
@@ -123,6 +173,15 @@ app.put('/api/processes/:id', requireDatabase, async (req, res, next) => {
     const { rows: previousRows } = await pool.query('SELECT data FROM processes WHERE process_number = $1', [id])
     if (!previousRows.length) return res.status(404).json({ error: `Process #${id} was not found.` })
     const previous = previousRows[0].data
+    const assignmentRoles = { manager: 'Менеджер', surveyor: 'Замерщик', technologist: 'Технолог', cncOperator: 'ЧПУ', installers: 'Монтажник' }
+    for (const [field, expectedRole] of Object.entries(assignmentRoles)) {
+      if (!data[field] || data[field] === previous[field]) continue
+      const { rows: matches } = await pool.query(
+        'SELECT 1 FROM employees WHERE name = $1 AND role = $2 AND active = TRUE',
+        [data[field], expectedRole],
+      )
+      if (!matches.length) return res.status(400).json({ error: `Для поля «${field}» выберите активного сотрудника с ролью «${expectedRole}».` })
+    }
     const changedFields = Object.keys(data).filter((key) => key !== 'id' && JSON.stringify(previous[key] ?? null) !== JSON.stringify(data[key] ?? null))
     const { rows } = await pool.query(
       'UPDATE processes SET data = $2::jsonb, updated_at = NOW() WHERE process_number = $1 RETURNING process_number, data, created_at, updated_at',
