@@ -37,6 +37,7 @@ async function initializeDatabase() {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS processes_updated_at_idx ON processes (updated_at DESC)')
+  await pool.query("UPDATE processes SET data = data - 'cutouts' - 'surveyPhotos' - 'drawingPhotos' WHERE data ? 'cutouts' OR data ? 'surveyPhotos' OR data ? 'drawingPhotos'")
   await pool.query(`
     CREATE TABLE IF NOT EXISTS process_attachments (
       id UUID PRIMARY KEY,
