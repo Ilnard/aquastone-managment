@@ -1,0 +1,36 @@
+.aq-popover-root { position: relative; display: inline-flex; }
+.aq-popover { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 220px; max-width: min(360px, calc(100vw - 24px)); background: #fff; border: 1px solid #e3e8e3; border-radius: 8px; box-shadow: 0 10px 30px #1b2b2226, 0 2px 6px #1b2b2214; padding: 6px; animation: aq-pop .12s ease-out; }
+@keyframes aq-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.aq-menu-item { width: 100%; display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: #3f4a42; font-size: 12px; text-align: left; cursor: pointer; }
+.aq-menu-item svg { color: #8f9991; flex: none; }
+.aq-menu-item span { flex: 1; }
+.aq-menu-item:hover:not(:disabled) { background: #f3f6f2; }
+.aq-menu-item:disabled { opacity: .45; cursor: default; }
+.aq-menu-sep { height: 1px; margin: 5px 4px; background: #eff1ee; }
+.aq-menu-title { padding: 8px 10px 4px; font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #9aa39c; }
+
+/* Формы в панелях: фильтры и колонки */
+.aq-panel-form { display: grid; gap: 10px; padding: 6px 6px 4px; min-width: 260px; }
+.aq-panel-form label { display: grid; gap: 4px; font-size: 10px; font-weight: 600; color: #7d877f; }
+.aq-panel-form select { height: 32px; border: 1px solid #e3e8e3; border-radius: 5px; background: #fbfcfb; padding: 0 8px; font-size: 12px; color: #3f4a42; }
+.aq-check { display: flex !important; grid-template-columns: none !important; align-items: center; gap: 8px !important; min-height: 28px; font-size: 12px !important; font-weight: 500 !important; color: #3f4a42 !important; cursor: pointer; }
+.aq-check input { width: 15px; height: 15px; accent-color: #284e3e; margin: 0; }
+.aq-panel-actions { display: flex; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid #eff1ee; }
+.aq-link-button { border: 0; background: transparent; color: #5e7d65; font-size: 11px; font-weight: 600; padding: 4px 2px; cursor: pointer; }
+.aq-link-button:disabled { color: #b4bbb5; cursor: default; }
+
+/* Фильтр по дате создания */
+.aq-date-range { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+.aq-date-range legend { padding: 0; margin-bottom: 4px; font-size: 10px; font-weight: 600; color: #7d877f; }
+.aq-date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.aq-date-inputs label { display: flex !important; align-items: center; gap: 6px !important; }
+.aq-date-inputs span { font-size: 11px; font-weight: 500; color: #8c958e; }
+.aq-date-inputs input { flex: 1; min-width: 0; height: 32px; border: 1px solid #e3e8e3; border-radius: 5px; background: #fbfcfb; padding: 0 6px; font-size: 12px; color: #3f4a42; }
+.aq-date-inputs input:focus { outline: none; border-color: #5d8c69; }
+.aq-date-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.aq-date-quick button { height: 24px; padding: 0 8px; border: 1px solid #e6eae6; border-radius: 12px; background: #fff; font-size: 10px; color: #5f6a62; }
+.aq-date-quick button:hover { background: #f5f8f5; }
+.aq-date-quick button.active { background: #edf4ef; border-color: #b9d2bf; color: #2f5d42; font-weight: 600; }
+.aq-date-quick button.clear { border-color: transparent; color: #a0564a; }
+.aq-panel-form:has(.aq-date-range) { min-width: 320px; }

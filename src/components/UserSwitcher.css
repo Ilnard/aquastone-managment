@@ -1,0 +1,21 @@
+.user-switcher{position:relative}
+.user-switcher .user-profile>svg{color:#8a948c}
+.user-popover{position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:30;min-width:230px;max-height:min(70vh,520px);overflow-y:auto;background:#fff;border:1px solid #e1e7e1;border-radius:9px;box-shadow:0 14px 40px #15241d26;padding:6px;animation:pop .14s ease-out}
+.user-popover-head{display:flex;align-items:center;gap:7px;padding:8px 8px 6px;color:#5d6a61}
+.user-popover-head b{font-size:11px}
+.user-popover-empty{margin:4px 8px 10px;font-size:10px;line-height:1.5;color:#8d978f}
+.user-list{display:grid;gap:8px}
+
+
+.user-option{display:flex;align-items:center;gap:9px;width:100%;min-height:40px;padding:4px 8px;border:0;border-radius:6px;background:transparent;color:#3c463f;font-size:11px;text-align:left}
+.user-option:hover{background:#f2f6f2}
+.user-option-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.user-option-text small{font-size:9px;font-weight:400;color:#8d978f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-option.current{color:#245a3f;font-weight:600;background:#edf4ef}
+.user-option>svg{color:#3d7a55}
+.user-option .avatar{width:26px;height:26px;font-size:8px}
+.user-picker-backdrop{z-index:50}
+.user-picker{width:min(440px,100%)}
+.user-picker .modal-content{max-height:60vh;overflow-y:auto}
+.user-picker .user-option{min-height:46px;font-size:12px;border:1px solid #edf0ed;background:#fbfcfb}
+

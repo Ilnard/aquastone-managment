@@ -1,0 +1,39 @@
+.furniture-directory { margin-bottom: 14px; }
+.furniture-directory .info-card-head { margin-bottom: 12px; gap: 12px; }
+.furniture-search { max-width: 320px; }
+.furniture-table { display: grid; }
+.furniture-group { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(320px, 2fr) 68px; gap: 12px; align-items: start; padding: 8px 6px; border-top: 1px solid #f0f2ef; font-size: 11px; color: #3f4a42; }
+.furniture-group > * { min-width: 0; }
+.furniture-head { padding-top: 4px; padding-bottom: 6px; border-top: 0; color: #929b94; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.furniture-company { padding-top: 4px; font-weight: 600; color: #242a26; overflow-wrap: anywhere; }
+.furniture-makers { display: grid; gap: 2px; }
+.furniture-maker { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; align-items: center; min-height: 26px; }
+.furniture-maker + .furniture-maker { border-top: 1px dashed #eef1ed; }
+.furniture-head .furniture-maker { min-height: 0; }
+.furniture-maker-name { overflow-wrap: anywhere; }
+.furniture-maker em, .furniture-group em { font-style: normal; color: #b4bbb5; }
+.furniture-maker .phone-link { white-space: nowrap; }
+.furniture-group > .decor-actions { padding-top: 0; }
+
+.furniture-form { background: #f8faf7; border-radius: 6px; border-top-color: transparent; margin: 2px 0; }
+.furniture-form .inline-edit { height: 32px; }
+.furniture-maker-edit { grid-template-columns: minmax(0, 1fr) 160px 28px; gap: 8px; border-top: 0 !important; padding: 2px 0; }
+.furniture-add-maker { display: inline-flex; align-items: center; gap: 4px; justify-self: start; margin-top: 4px; }
+.furniture-actions { padding-top: 2px; }
+
+@media (max-width: 860px) {
+  .furniture-head { display: none; }
+  .furniture-group { grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 4px; }
+  .furniture-group > .furniture-company { grid-column: 1; font-size: 13px; padding-top: 2px; }
+  .furniture-group > .decor-actions { grid-column: 2; grid-row: 1; }
+  .furniture-group > .decor-actions:empty { display: none; }
+  .furniture-group > .furniture-makers { grid-column: 1 / -1; }
+  .furniture-maker { grid-template-columns: minmax(0, 1fr) auto; }
+  .furniture-form .furniture-company[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #9aa39c; }
+  .furniture-form > .furniture-company { grid-column: 1 / -1; }
+  .furniture-form > .furniture-actions { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; }
+  .furniture-maker-edit { grid-template-columns: minmax(0, 1fr) 28px; }
+  .furniture-maker-edit input[type="tel"] { grid-column: 1; grid-row: 2; }
+  .furniture-maker-edit .decor-icon-button { grid-column: 2; grid-row: 1; }
+  .furniture-maker-edit + .furniture-maker-edit { border-top: 1px dashed #e3e8e3 !important; padding-top: 6px; }
+}

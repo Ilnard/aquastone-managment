@@ -1,0 +1,98 @@
+/* Календарь сроков (полосы) */
+.cal-heading{align-items:flex-end}
+.cal-mode{display:flex;padding:3px;border:1px solid #e3e7e2;border-radius:8px;background:#fff}
+.cal-mode button{height:32px;padding:0 14px;border:0;border-radius:6px;background:transparent;color:#6b766e;font-size:11px;font-weight:600;white-space:nowrap}
+.cal-mode button.on{background:#edf4ef;color:#245a3f}
+.cal-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.cal-stat{display:flex;align-items:baseline;gap:8px;padding:12px 14px;background:#fff;border:1px solid #e8ebe7;border-radius:9px}
+.cal-stat b{font:700 20px Manrope,sans-serif;color:#2a332e}
+.cal-stat span{font-size:10px;color:#7b867e}
+.cal-stat.danger{border-color:#f0d3cd;background:#fdf6f4}.cal-stat.danger b{color:#b24e3f}
+.cal-stat.warn{border-color:#f1e6d4;background:#fdf9f1}.cal-stat.warn b{color:#a5824a}
+.cal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.cal-nav{display:flex;align-items:center;gap:6px}
+.cal-nav h2{margin:0 0 0 10px;font:700 17px Manrope,sans-serif;letter-spacing:-.4px;color:#25302a;white-space:nowrap}
+.cal-icon{width:34px;height:34px;border:1px solid #e3e7e2;border-radius:7px;background:#fff;color:#58625b;display:grid;place-items:center}
+.cal-today{height:34px;padding:0 13px;border:1px solid #e3e7e2;border-radius:7px;background:#fff;color:#3c463f;font-size:11px;font-weight:600}
+.cal-icon:hover,.cal-today:hover{background:#f6f8f5}
+.cal-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cal-filter{height:30px;display:flex;align-items:center;gap:6px;padding:0 10px;border:1px solid #e3e7e2;border-radius:15px;background:#fff;color:#8a948c;font-size:10px}
+.cal-filter i{width:8px;height:8px;border-radius:50%;background:#cfd5d0}
+.cal-filter span{font-size:9px;color:#a2aaa4}
+.cal-filter.on{color:#3c463f;border-color:#d6ddd6}
+.cal-filter.on.g-active i{background:#c08347}.cal-filter.on.g-ready i{background:#5d936b}.cal-filter.on.g-done i{background:#a3aea6}
+.cal-mine{display:flex;align-items:center;gap:6px;margin-left:6px;font-size:10px;color:#58625b;cursor:pointer}
+
+.gantt{--label:250px;background:#fff;border:1px solid #e8ebe7;border-radius:9px;overflow:hidden;margin-bottom:14px}
+.gantt-scroll{overflow-x:auto;overscroll-behavior-x:contain}
+.gantt.month .gantt-inner{min-width:calc(var(--label) + var(--days) * 26px)}
+.gantt.quarter .gantt-inner{min-width:calc(var(--label) + var(--days) * 11px)}
+.gantt-head{display:flex;background:#fafbf9;border-bottom:1px solid #edf0ed}
+.gantt-corner{position:sticky;left:0;z-index:2;width:var(--label);flex:none;display:flex;align-items:flex-end;padding:0 14px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8d978f;background:#fafbf9;border-right:1px solid #edf0ed}
+.gantt-axis{flex:1;min-width:0}
+.gantt-months{display:flex;border-bottom:1px solid #edf0ed}
+.gantt-months div{flex-basis:0;padding:6px 8px;font-size:10px;font-weight:600;color:#4f5a52;border-left:1px solid #e3e8e2;white-space:nowrap;overflow:hidden}
+.gantt-months div:first-child{border-left:0}
+.gantt-days{display:grid;grid-template-columns:repeat(var(--days),minmax(0,1fr))}
+.gantt-days div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:40px;font-size:10px;color:#5d6a61}
+.gantt.quarter .gantt-days div{height:26px;font-size:8px}
+.gantt.quarter .gantt-days div:not(.first):not(.today) b{font-weight:400;color:#a7aea8}
+.gantt-days small{font-size:8px;color:#a2aaa4}
+.gantt-days div.weekend{background:#f6f4f1;color:#b48a7d}
+.gantt-days div.today b{background:#284e3e;color:#fff;border-radius:9px;padding:1px 5px}
+.gantt-body{position:relative}
+.gantt-grid{position:absolute;top:0;bottom:0;left:var(--label);right:0;display:grid;grid-template-columns:repeat(var(--days),minmax(0,1fr));pointer-events:none}
+.gantt-grid i{border-left:1px solid #f3f5f2}
+.gantt-grid i.weekend{background:#faf9f7}
+.gantt-grid i.first{border-left-color:#dfe5de}
+.gantt-today{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#284e3e;opacity:.55;z-index:1}
+.gantt-row{position:relative;display:flex;width:100%;min-height:48px;padding:0;border:0;border-bottom:1px solid #f0f2ef;background:transparent;text-align:left;cursor:pointer;font:inherit}
+.gantt-row:hover{background:#f7faf7a8}
+.gantt-row:hover .gantt-label{background:#f7faf7}
+.gantt-label{position:sticky;left:0;z-index:2;width:var(--label);flex:none;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:6px 14px;background:#fff;border-right:1px solid #edf0ed;min-width:0}
+.gantt-label-top{font-size:10px;color:#2f3a32;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-label-top b{font-weight:700}
+.gantt-label-sub{display:flex;align-items:center;gap:5px;font-size:9px;color:#8a948c;white-space:nowrap;overflow:hidden}
+.gantt-label-sub em{margin-left:auto;font-style:normal;color:#6f7a72}
+.gantt-label-sub em.late{color:#b24e3f;font-weight:600}
+.gantt-label-sub em.soon{color:#b5803f;font-weight:600}
+.stage-dot{width:6px;height:6px;border-radius:50%;flex:none;background:#a3aea6}
+.gantt-track{position:relative;flex:1;min-width:0}
+.gantt-bar,.gantt-tail{position:absolute;top:50%;height:22px;transform:translateY(-50%);z-index:1}
+.gantt-bar{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0 6px;border-radius:6px;color:#fff;font-size:9px;font-weight:600;overflow:hidden;box-shadow:0 1px 2px #1b2b2214}
+.gantt-bar.cut-left{border-top-left-radius:0;border-bottom-left-radius:0}
+.gantt-bar.cut-right{border-top-right-radius:0;border-bottom-right-radius:0}
+.gantt-bar-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-flag{flex:none}
+.gantt.quarter .gantt-bar-text{display:none}
+.gantt-tail{border-radius:0 6px 6px 0;background:repeating-linear-gradient(135deg,#e3796a 0 5px,#f0a497 5px 10px);opacity:.9}
+.gantt-row.overdue .gantt-bar{border-top-right-radius:0;border-bottom-right-radius:0;box-shadow:inset 0 0 0 2px #c2412d}
+/* Цвет полосы — по этапу процесса */
+.s-gray{background:#9aa59d}.s-amber{background:#c99a52}.s-blue{background:#6b8cc4}.s-violet{background:#9277b4}.s-orange{background:#c78a54}.s-green{background:#5d936b}.s-teal{background:#4f948a}.s-red{background:#c46a5c}
+.gantt-row.g-done .gantt-bar{background:#c9d1cb;color:#5d6a61;box-shadow:none}
+.gantt-row.g-ready .gantt-bar{opacity:.75}
+.gantt-empty{padding:34px 16px;text-align:center;font-size:11px;color:#9aa39c}
+.gantt-legend{display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 14px;border-top:1px solid #edf0ed;font-size:9px;color:#7b867e}
+.gantt-legend span{display:flex;align-items:center;gap:6px}
+.gantt-legend i{display:inline-block}
+.lg-bar{width:26px;height:9px;border-radius:3px;background:linear-gradient(90deg,#6b8cc4,#9277b4,#c78a54)}
+.lg-tail{width:20px;height:9px;border-radius:3px;background:repeating-linear-gradient(135deg,#e3796a 0 4px,#f0a497 4px 8px)}
+.lg-today{width:2px;height:12px;background:#284e3e;opacity:.6}
+
+.cal-agenda-head{display:flex;gap:9px;align-items:flex-start;margin-bottom:12px;color:#a5824a}
+.cal-agenda-head h3{margin:0}
+.cal-agenda-head p{margin:4px 0 0;font-size:9px;color:#929b94}
+.cal-missing-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
+.cal-missing-list button{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid #f1e6d4;border-radius:6px;background:#fdf9f1;text-align:left}
+.cal-missing-list b{font-size:10px;color:#3c463f}
+.cal-missing-list small{font-size:9px;color:#a5824a}
+.cal-missing-list button:hover{background:#faf2e2}
+
+@media (max-width:760px){
+  .cal-heading{flex-direction:column;align-items:flex-start;gap:12px}
+  .cal-summary{grid-template-columns:minmax(0,1fr)}
+  .gantt{--label:150px}
+  .gantt-label{padding:6px 8px}
+  .gantt-label-sub em{display:none}
+  .cal-nav h2{font-size:15px}
+}

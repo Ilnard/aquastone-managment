@@ -1,14 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  Check, Circle, Download, Eraser, Hand, Magnet, Maximize, MousePointer2, MoveHorizontal,
+  BoxSelect, Check, Circle, Download, Eraser, Hand, Magnet, Maximize, MessageSquareText, MousePointer2, MoveHorizontal,
   Pencil, Redo2, Slash, Square, Trash2, Type, Undo2, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import {
-  anchorPoints, clamp, dimGeometry, dist, findSnap, handlesOf, hitTest, keyPoints, mid, normRect, orthoSnap,
+  anchorPoints, bbox, calloutGeometry, clamp, dimGeometry, dist, findSnap, handlesOf, hitTest, keyPoints, mid, normRect, orthoSnap,
   pickElement, roundEl, simplifyPoints, sketchBounds, translate, uid,
 } from './geometry.js'
-import { SelectionOverlay, SketchPreview, SketchShape, SnapMark } from './SketchShapes.jsx'
+import { Marquee, SelectionOverlay, SketchPreview, SketchShape, SnapMark } from './SketchShapes.jsx'
 import './SketchEditor.css'
+
+/** Значок «Ёлочки»: линия с косыми штрихами. */
+function HatchIcon({ size = 21 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <path d="M8 3v18" /><path d="M8 4l6 6M8 9l6 6M8 14l6 6" strokeWidth="1.6" />
+  </svg>
+}
 
 const TOOLS = [
   { id: 'select', label: 'Выбор', icon: MousePointer2, key: 'v' },
@@ -18,12 +25,15 @@ const TOOLS = [
   { id: 'rect', label: 'Прямоуг.', title: 'Прямоугольник', icon: Square, key: 'r' },
   { id: 'circle', label: 'Круг', icon: Circle, key: 'c' },
   { id: 'cross', label: 'Крестик', icon: X, key: 'x' },
+  { id: 'hatch', label: 'Ёлочка', title: 'Ёлочка (стена, примыкание)', icon: HatchIcon, key: 'g' },
   { id: 'text', label: 'Текст', icon: Type, key: 't' },
+  { id: 'callout', label: 'Сноска', title: 'Сноска с текстом', icon: MessageSquareText, key: 'n' },
   { id: 'pen', label: 'Карандаш', icon: Pencil, key: 'p' },
   { id: 'eraser', label: 'Ластик', icon: Eraser, key: 'e' },
 ]
-const DRAW_TOOLS = ['line', 'dim', 'rect', 'circle', 'cross', 'text', 'pen']
-const SNAP_TOOLS = ['line', 'dim', 'rect', 'circle', 'cross']
+const DRAW_TOOLS = ['line', 'dim', 'rect', 'circle', 'cross', 'hatch', 'text', 'callout', 'pen']
+const SNAP_TOOLS = ['line', 'dim', 'rect', 'circle', 'cross', 'hatch', 'callout']
+const HATCH_STEPS = [{ value: 20, name: 'Часто' }, { value: 30, name: 'Обычно' }, { value: 45, name: 'Редко' }]
 const DEFAULT_DIM_OFFSET = 50
 const COLORS = [
   { value: '#1f2a24', name: 'Чёрный' },
@@ -33,10 +43,12 @@ const COLORS = [
 ]
 const WIDTHS = [{ value: 2, name: 'Тонкая' }, { value: 4, name: 'Средняя' }, { value: 7, name: 'Толстая' }]
 const TEXT_SIZES = [{ value: 18, name: 'S' }, { value: 26, name: 'M' }, { value: 38, name: 'L' }]
-const TYPE_NAMES = { line: 'Линия', dim: 'Размер', rect: 'Прямоугольник', circle: 'Круг', cross: 'Крестик', text: 'Текст', pen: 'Карандаш' }
+const TYPE_NAMES = { line: 'Линия', dim: 'Размер', rect: 'Прямоугольник', circle: 'Круг', cross: 'Крестик', hatch: 'Ёлочка', text: 'Текст', callout: 'Сноска', pen: 'Карандаш' }
+const CORNER_LABELS = { tl: 'Левый верх', tr: 'Правый верх', bl: 'Левый низ', br: 'Правый низ' }
+const plural = (n, one, few, many) => { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many }
 const CORNER_NAMES = { tl: 'левый верхний', tr: 'правый верхний', bl: 'левый нижний', br: 'правый нижний' }
 const HINTS = {
-  select: 'Нажмите на фигуру, чтобы выбрать и перетащить. Двойное нажатие на текст — редактировать. Пустое место — двигать лист.',
+  select: 'Нажмите на фигуру — выбрать и перетащить. Обведите рамкой по пустому месту — выбрать несколько (Shift или «Добавлять к выбору» — по одной). Двумя пальцами — двигать лист.',
   pan: 'Двигайте лист. Двумя пальцами — масштаб.',
   line: 'Проведите от точки до точки. Концы притягиваются к другим линиям и углам.',
   dim: 'Проведите от одного края детали до другого и впишите размер. Отступ меняется ручкой в середине размерной линии.',
@@ -45,10 +57,19 @@ const HINTS = {
   cross: 'Нажмите, чтобы поставить крестик.',
   text: 'Нажмите на лист и введите текст. Enter — готово, Shift+Enter — новая строка.',
   pen: 'Рисуйте от руки.',
+  hatch: 'Проведите линию стены — штрихи «ёлочки» встанут с одной стороны. Сторону и шаг можно сменить справа.',
+  callout: 'Нажмите в место, на которое указывает сноска, протяните к месту для текста и введите его.',
   eraser: 'Нажмите или проведите по фигуре, чтобы удалить её.',
 }
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 8
+/** Начальный масштаб: на планшетах и телефонах лист крупнее, чтобы линии и текст было удобно рисовать пальцем. */
+const baseZoom = () => {
+  try {
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches
+    return coarse || window.innerWidth < 900 ? 1.75 : 1
+  } catch { return 1 }
+}
 
 export default function SketchEditor({ initialSketch, title, subtitle, readOnly = false, onSave, onClose, exportName = 'chertezh' }) {
   const [elements, setElementsState] = useState(() => (Array.isArray(initialSketch?.elements) ? initialSketch.elements : []))
@@ -62,10 +83,14 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   const [dirty, setDirty] = useState(false)
 
   const [tool, setTool] = useState(readOnly ? 'pan' : 'line')
-  const [style, setStyle] = useState({ color: COLORS[0].value, width: 4, dash: false, dimDash: true, labelSize: 26, textSize: 26, radius: 40, corners: { tl: false, tr: false, br: false, bl: false } })
+  const [style, setStyle] = useState({ color: COLORS[0].value, width: 4, dash: false, dimDash: true, labelSize: 26, textSize: 26, radius: 40, corners: { tl: false, tr: false, br: false, bl: false }, side: 1, spacing: 30 })
   const [magnet, setMagnet] = useState(true)
   const [ortho, setOrtho] = useState(true)
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedIds, setSelectedIdsState] = useState([])
+  const selectedIdsRef = useRef([])
+  const setSelectedIds = (next) => { selectedIdsRef.current = next; setSelectedIdsState(next) }
+  const [additive, setAdditive] = useState(false)
+  const [marquee, setMarquee] = useState(null)
   const [draft, setDraftState] = useState(null)
   const draftRef = useRef(null)
   const setDraft = (next) => { draftRef.current = next; setDraftState(next) }
@@ -73,7 +98,8 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   const [textEdit, setTextEditState] = useState(null)
   const textEditRef = useRef(null)
   const setTextEdit = (next) => { textEditRef.current = next; setTextEditState(next) }
-  const [view, setViewState] = useState({ x: 40, y: 40, k: 1 })
+  const base = useRef(baseZoom()).current
+  const [view, setViewState] = useState({ x: 40, y: 40, k: base })
   const viewRef = useRef(view)
   const setView = (next) => { viewRef.current = next; setViewState(next) }
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -91,7 +117,10 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   const lastTap = useRef({ id: null, time: 0 })
   const fitted = useRef(false)
 
-  const selected = elements.find((el) => el.id === selectedId) || null
+  const selectedSet = new Set(selectedIds)
+  const selectedEls = elements.filter((el) => selectedSet.has(el.id))
+  const selected = selectedEls.length === 1 ? selectedEls[0] : null
+  const multi = selectedEls.length > 1
 
   // ---------- История (отмена / повтор) ----------
   const pushHistory = (snapshot) => {
@@ -131,9 +160,9 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   const fitView = (box = size) => {
     if (!box.w || !box.h) return
     const els = elementsRef.current
-    if (!els.length) { setView({ x: 40, y: 40, k: 1 }); return }
+    if (!els.length) { setView({ x: 40, y: 40, k: base }); return }
     const b = sketchBounds(els, 40)
-    const k = clamp(Math.min(box.w / b.w, box.h / b.h), MIN_ZOOM, 3)
+    const k = clamp(Math.min(box.w / b.w, box.h / b.h), MIN_ZOOM, 3 * base)
     setView({ x: (box.w - b.w * k) / 2 - b.x * k, y: (box.h - b.h * k) / 2 - b.y * k, k })
   }
   const zoomAt = (sp, factor) => {
@@ -194,13 +223,13 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   }
 
   /** При перетаскивании фигуры подтягиваем её ближайшую опорную точку к чужой. */
-  const snapMoved = (moved, excludeId) => {
-    if (!magnet) { setSnapMark(null); return moved }
+  const snapMoved = (movedList, excludeIds) => {
+    if (!magnet) { setSnapMark(null); return movedList }
     const k = viewRef.current.k
-    const others = elementsRef.current.filter((el) => el.id !== excludeId)
+    const others = elementsRef.current.filter((el) => !excludeIds.has(el.id))
     let best = null
     let bestD = 14 / k
-    for (const q of anchorPoints(moved)) {
+    for (const q of movedList.flatMap(anchorPoints)) {
       for (const el of others) {
         for (const t of keyPoints(el)) {
           const d = dist(q, t)
@@ -209,7 +238,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       }
     }
     setSnapMark(best ? { x: best.x, y: best.y, kind: 'point' } : null)
-    return best ? translate(moved, best.dx, best.dy) : moved
+    return best ? movedList.map((el) => translate(el, best.dx, best.dy)) : movedList
   }
 
   /**
@@ -237,7 +266,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       if (hitTest(els[i], p, tol, false)) {
         const id = els[i].id
         setEls(els.filter((el) => el.id !== id))
-        if (id === selectedId) setSelectedId(null)
+        if (selectedIdsRef.current.includes(id)) setSelectedIds(selectedIdsRef.current.filter((x) => x !== id))
         return
       }
     }
@@ -247,6 +276,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     const d = drag.current
     if (d?.snapshot && elementsRef.current !== d.snapshot) setEls(d.snapshot)
     if (draftRef.current) setDraft(null)
+    setMarquee(null)
     drag.current = null
     setSnapMark(null)
   }
@@ -263,6 +293,11 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     const g = dimGeometry(el)
     startTextInput({ id: el.id, field: 'label', x: g.labelPos.x, y: g.labelPos.y, value: el.label || '', size: g.size, color: el.color, centered: true })
   }
+  /** Текст сноски: поле ввода стоит над полочкой. */
+  const openCallout = (el, pending = false) => {
+    const g = calloutGeometry(el)
+    startTextInput({ id: el.id, field: 'callout', pending: pending ? el : null, x: g.textX, y: g.elbow.y, dir: g.dir, value: el.text || '', size: g.size, color: el.color })
+  }
   const startTextInput = (te) => {
     setTextEdit(te)
     // Фокус ставим синхронно в обработчике касания — иначе на iPad не откроется клавиатура.
@@ -275,6 +310,15 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     setTextEdit(null)
     textareaRef.current?.blur()
     const els = elementsRef.current
+    if (te.field === 'callout') {
+      const value = te.value.replace(/\s+$/, '')
+      if (te.pending) { if (value.trim()) commit([...els, { ...te.pending, text: value }]); return }
+      const old = els.find((el) => el.id === te.id)
+      if (!old) return
+      if (!value.trim()) { commit(els.filter((el) => el.id !== te.id)); setSelectedIds([]) }
+      else if (value !== old.text) commit(els.map((el) => (el.id === te.id ? { ...el, text: value } : el)))
+      return
+    }
     if (te.field === 'label') {
       const value = te.value.replace(/\s+/g, ' ').trim()
       const old = els.find((el) => el.id === te.id)
@@ -285,7 +329,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     if (te.id) {
       const old = els.find((el) => el.id === te.id)
       if (!old) return
-      if (!value.trim()) { commit(els.filter((el) => el.id !== te.id)); setSelectedId(null) }
+      if (!value.trim()) { commit(els.filter((el) => el.id !== te.id)); setSelectedIds([]) }
       else if (value !== old.text) commit(els.map((el) => (el.id === te.id ? { ...el, text: value } : el)))
     } else if (value.trim()) {
       commit([...els, roundEl({ id: uid(), type: 'text', x: te.x, y: te.y, text: value, size: te.size, color: te.color })])
@@ -328,10 +372,25 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
           const handle = handlesOf(selected).find((h) => dist(h, wp) <= 16 / k)
           if (handle) { drag.current = { mode: 'handle', id: selected.id, handle: handle.id, orig: selected, snapshot: els }; return }
         }
+        const adding = additive || event.shiftKey || event.ctrlKey || event.metaKey
         const hit = pickElement(els, wp, 10 / k)
-        if (hit) { setSelectedId(hit.id); drag.current = { mode: 'move', id: hit.id, start: wp, orig: hit, snapshot: els, moved: false }; return }
-        setSelectedId(null)
-        drag.current = { mode: 'pan', s0: sp, v0: { ...viewRef.current } }
+        const current = selectedIdsRef.current
+        if (hit) {
+          if (adding) {
+            // Добавляем к выбору или убираем из него — без перетаскивания.
+            setSelectedIds(current.includes(hit.id) ? current.filter((id) => id !== hit.id) : [...current, hit.id])
+            drag.current = { mode: 'consumed' }
+            return
+          }
+          const ids = current.includes(hit.id) ? current : [hit.id]
+          if (ids !== current) setSelectedIds(ids)
+          const set = new Set(ids)
+          drag.current = { mode: 'move', id: hit.id, ids: set, start: wp, origs: els.filter((el) => set.has(el.id)), orig: hit, snapshot: els, moved: false }
+          return
+        }
+        // Пустое место: рамка выделения.
+        drag.current = { mode: 'marquee', start: wp, s0: sp, keep: adding ? current : [] }
+        if (!adding) setSelectedIds([])
         return
       }
       case 'eraser': drag.current = { mode: 'erase', snapshot: els, last: wp }; eraseAt(wp); return
@@ -342,6 +401,8 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       case 'circle': { const p = resolvePoint(wp); setDraft(withStyle({ type: 'circle', cx: p.x, cy: p.y, r: 0 })); break }
       case 'cross': { const p = resolvePoint(wp); setDraft(withStyle({ type: 'cross', cx: p.x, cy: p.y, size: 28 })); break }
       case 'pen': setDraft(withStyle({ type: 'pen', points: [[wp.x, wp.y]] })); break
+      case 'hatch': { const p = resolvePoint(wp); setDraft(withStyle({ type: 'hatch', x1: p.x, y1: p.y, x2: p.x, y2: p.y, side: style.side, spacing: style.spacing })); break }
+      case 'callout': { const p = resolvePoint(wp); setDraft(withStyle({ type: 'callout', x1: p.x, y1: p.y, x2: p.x, y2: p.y, size: style.textSize, text: '' })); drag.current = { mode: 'draw', s0: sp }; return }
       default: return
     }
     drag.current = { mode: 'draw' }
@@ -372,7 +433,8 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       case 'draw': {
         const cur = draftRef.current
         if (!cur) return
-        if (cur.type === 'line') { const p = resolvePoint(wp, { x: cur.x1, y: cur.y1 }); setDraft({ ...cur, x2: p.x, y2: p.y }) }
+        if (cur.type === 'line' || cur.type === 'hatch') { const p = resolvePoint(wp, { x: cur.x1, y: cur.y1 }); setDraft({ ...cur, x2: p.x, y2: p.y }) }
+        else if (cur.type === 'callout') { setSnapMark(null); setDraft({ ...cur, x2: wp.x, y2: wp.y }) }
         else if (cur.type === 'dim') {
           const p = resolvePoint(wp, { x: cur.x1, y: cur.y1 })
           setDraft({ ...cur, x2: p.x, y2: p.y, offset: dimSide(cur.x1, cur.y1, p.x, p.y) * DEFAULT_DIM_OFFSET })
@@ -391,8 +453,19 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
         const dy = wp.y - d.start.y
         if (!d.moved && Math.hypot(dx, dy) * k < 4) return
         d.moved = true
-        const moved = snapMoved(translate(d.orig, dx, dy), d.id)
-        setEls(d.snapshot.map((el) => (el.id === d.id ? moved : el)))
+        const moved = new Map(snapMoved(d.origs.map((el) => translate(el, dx, dy)), d.ids).map((el) => [el.id, el]))
+        setEls(d.snapshot.map((el) => moved.get(el.id) || el))
+        return
+      }
+      case 'marquee': {
+        if (Math.hypot(sp.x - d.s0.x, sp.y - d.s0.y) < 4) return
+        const box = { x1: d.start.x, y1: d.start.y, x2: wp.x, y2: wp.y }
+        d.box = box
+        setMarquee(box)
+        const x1 = Math.min(box.x1, box.x2), x2 = Math.max(box.x1, box.x2), y1 = Math.min(box.y1, box.y2), y2 = Math.max(box.y1, box.y2)
+        // Выбираем фигуры, целиком попавшие в рамку.
+        const inside = elementsRef.current.filter((el) => { const b = bbox(el); return b.x1 >= x1 && b.x2 <= x2 && b.y1 >= y1 && b.y2 <= y2 }).map((el) => el.id)
+        setSelectedIds([...new Set([...d.keep, ...inside])])
         return
       }
       case 'handle': {
@@ -403,7 +476,9 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
           // Отступ — проекция пальца на нормаль к измеряемому отрезку.
           const g = dimGeometry(o)
           next = { ...o, offset: (wp.x - o.x1) * g.n.x + (wp.y - o.y1) * g.n.y }
-        } else if (o.type === 'line' || o.type === 'dim') {
+        } else if (o.type === 'callout' && d.handle === 'p2') {
+          next = { ...o, x2: wp.x, y2: wp.y }
+        } else if (o.type === 'line' || o.type === 'dim' || o.type === 'hatch' || o.type === 'callout') {
           if (d.handle === 'p1') { const p = resolvePoint(wp, { x: o.x2, y: o.y2 }, exclude); next = { ...o, x1: p.x, y1: p.y } }
           else { const p = resolvePoint(wp, { x: o.x1, y: o.y1 }, exclude); next = { ...o, x2: p.x, y2: p.y } }
         } else if (o.type === 'rect') {
@@ -433,7 +508,13 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     if (!cur) return
     const k = viewRef.current.k
     let el = cur
-    if ((cur.type === 'line' || cur.type === 'dim') && dist({ x: cur.x1, y: cur.y1 }, { x: cur.x2, y: cur.y2 }) * k < 4) return
+    if (cur.type === 'callout') {
+      // Короткое нажатие — полочка ставится вправо-вверх от точки.
+      const short = dist({ x: cur.x1, y: cur.y1 }, { x: cur.x2, y: cur.y2 }) * k < 12
+      openCallout(roundEl(short ? { ...cur, x2: cur.x1 + 60, y2: cur.y1 - 60 } : cur), true)
+      return
+    }
+    if ((cur.type === 'line' || cur.type === 'dim' || cur.type === 'hatch') && dist({ x: cur.x1, y: cur.y1 }, { x: cur.x2, y: cur.y2 }) * k < 4) return
     if (cur.type === 'rect' && (Math.abs(cur.w) * k < 4 || Math.abs(cur.h) * k < 4)) return
     if (cur.type === 'circle' && cur.r * k < 4) el = { ...cur, r: 20 }
     if (cur.type === 'pen') el = { ...cur, points: simplifyPoints(cur.points, 0.8 / k) }
@@ -450,6 +531,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       lastTap.current = { id: null, time: 0 }
       if (el.type === 'text') openText(null, el)
       else if (el.type === 'dim') openLabel(el)
+      else if (el.type === 'callout') openCallout(el)
       else if (el.type === 'line') labelInputRef.current?.focus()
     } else {
       lastTap.current = { id: el.id, time: now }
@@ -468,7 +550,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
       case 'draw': finishDraft(); return
       case 'move': {
         if (d.moved) {
-          setEls(elementsRef.current.map((el) => (el.id === d.id ? roundEl(el) : el)))
+          setEls(elementsRef.current.map((el) => (d.ids.has(el.id) ? roundEl(el) : el)))
           pushHistory(d.snapshot)
           return
         }
@@ -484,6 +566,13 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
         }
         return
       case 'erase': if (elementsRef.current !== d.snapshot) pushHistory(d.snapshot); return
+      case 'marquee': {
+        setMarquee(null)
+        if (d.box) return
+        // Просто нажатие на пустое место — сбросить выбор.
+        if (!d.keep.length) setSelectedIds([])
+        return
+      }
       case 'text': {
         if (dist(d.s0, screenPoint(event)) > 8) return
         const hit = pickElement(elementsRef.current, d.wp, 8 / viewRef.current.k)
@@ -497,22 +586,36 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   // ---------- Свойства фигуры / инструмента ----------
   const setProp = (field, value) => {
     const currentKind = selected ? selected.type : tool
-    if (selected) {
-      commit(elementsRef.current.map((el) => (el.id === selected.id ? { ...el, [field]: value } : el)), `${selected.id}:${field}`)
+    const ids = new Set(selectedIdsRef.current)
+    if (ids.size) {
+      commit(elementsRef.current.map((el) => {
+        if (!ids.has(el.id)) return el
+        // У текста и сносок нет толщины линии — у них не меняем.
+        if (field === 'width' && el.type === 'text') return el
+        return { ...el, [field]: value }
+      }), `${[...ids].join(',')}:${field}`)
     }
     const styleKey = { size: 'textSize', dash: currentKind === 'dim' ? 'dimDash' : 'dash' }
-    if (['color', 'width', 'dash', 'size', 'labelSize', 'radius', 'corners'].includes(field)) setStyle((s) => ({ ...s, [styleKey[field] || field]: value }))
+    if (['color', 'width', 'dash', 'size', 'labelSize', 'radius', 'corners', 'side', 'spacing'].includes(field)) setStyle((s) => ({ ...s, [styleKey[field] || field]: value }))
+  }
+  const setRadiusLabel = (corner, value) => {
+    if (!selected) return
+    const clean = value.replace(/[^0-9.,rR]/g, '').slice(0, 8)
+    const labels = { ...(selected.radiusLabels || {}), [corner]: clean }
+    if (!clean) delete labels[corner]
+    commit(elementsRef.current.map((el) => (el.id === selected.id ? { ...el, radiusLabels: labels } : el)), `${selected.id}:radiusLabels:${corner}`)
   }
   const deleteSelected = () => {
-    if (!selected) return
-    commit(elementsRef.current.filter((el) => el.id !== selected.id))
-    setSelectedId(null)
+    const ids = new Set(selectedIdsRef.current)
+    if (!ids.size) return
+    commit(elementsRef.current.filter((el) => !ids.has(el.id)))
+    setSelectedIds([])
   }
   const chooseTool = (id) => {
     commitText()
     cancelInteraction()
     setTool(id)
-    if (id !== 'select') setSelectedId(null)
+    if (id !== 'select') { setSelectedIds([]); setAdditive(false) }
   }
 
   // ---------- Сохранение, экспорт, закрытие ----------
@@ -575,8 +678,9 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
     if (mod && (key === 'z' || key === 'я')) { event.preventDefault(); if (readOnly) return; if (event.shiftKey) redo(); else undo(); return }
     if (mod && (key === 'y' || key === 'н')) { event.preventDefault(); if (!readOnly) redo(); return }
     if (mod && (key === 's' || key === 'ы')) { event.preventDefault(); save(); return }
-    if (event.key === 'Escape') { if (drag.current || draftRef.current) cancelInteraction(); else if (selectedId) setSelectedId(null); else requestClose(); return }
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selected && !readOnly) { event.preventDefault(); deleteSelected(); return }
+    if (mod && (key === 'a' || key === 'ф')) { event.preventDefault(); if (readOnly) return; setTool('select'); setSelectedIds(elementsRef.current.map((el) => el.id)); return }
+    if (event.key === 'Escape') { if (drag.current || draftRef.current) cancelInteraction(); else if (selectedIdsRef.current.length) setSelectedIds([]); else requestClose(); return }
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedIdsRef.current.length && !readOnly) { event.preventDefault(); deleteSelected(); return }
     if (!mod && !event.altKey && !readOnly) {
       const found = TOOLS.find((t) => t.key === key)
       if (found) chooseTool(found.id)
@@ -591,11 +695,16 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
   // ---------- Отрисовка ----------
   const k = view.k
   const visible = { x: -view.x / k, y: -view.y / k, w: (size.w || 1) / k, h: (size.h || 1) / k }
-  const props = selected || { color: style.color, width: style.width, dash: tool === 'dim' ? style.dimDash : style.dash, size: style.textSize, labelSize: style.labelSize, radius: style.radius, corners: style.corners }
-  const kind = selected ? selected.type : (DRAW_TOOLS.includes(tool) ? tool : null)
+  const props = selected || (multi ? selectedEls[0] : null) || { color: style.color, width: style.width, dash: tool === 'dim' ? style.dimDash : style.dash, size: style.textSize, labelSize: style.labelSize, radius: style.radius, corners: style.corners, side: style.side, spacing: style.spacing }
+  const kind = multi ? 'multi' : selected ? selected.type : (DRAW_TOOLS.includes(tool) ? tool : null)
   const textFont = textEdit ? Math.max(16, textEdit.size * k) : 16
   const textLongest = textEdit ? Math.max(4, ...textEdit.value.split('\n').map((line) => line.length)) : 0
-  const textScreen = textEdit ? { left: textEdit.x * k + view.x, top: textEdit.y * k + view.y, fontSize: textFont, color: textEdit.color, width: Math.max(textEdit.centered ? 120 : 160, textLongest * textFont * 0.62 + 24), ...(textEdit.centered ? { transform: 'translate(-50%, -50%)', textAlign: 'center', marginLeft: 0 } : {}) } : null
+  const calloutEdit = textEdit?.field === 'callout'
+  const textScreen = calloutEdit ? {
+    left: textEdit.x * k + view.x, top: textEdit.y * k + view.y - 3, fontSize: textFont, color: textEdit.color,
+    width: Math.max(160, textLongest * textFont * 0.62 + 24),
+    transform: textEdit.dir < 0 ? 'translate(-100%, -100%)' : 'translateY(-100%)', textAlign: textEdit.dir < 0 ? 'right' : 'left', marginLeft: 0,
+  } : textEdit ? { left: textEdit.x * k + view.x, top: textEdit.y * k + view.y, fontSize: textFont, color: textEdit.color, width: Math.max(textEdit.centered ? 120 : 160, textLongest * textFont * 0.62 + 24), ...(textEdit.centered ? { transform: 'translate(-50%, -50%)', textAlign: 'center', marginLeft: 0 } : {}) } : null
 
   return <div className="sketch-overlay" role="dialog" aria-modal="true" aria-label={title}>
     <header className="sketch-header">
@@ -614,7 +723,7 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
         </div>}
         <div className="sketch-group">
           <button className="sketch-icon-btn" onClick={() => zoomAt({ x: size.w / 2, y: size.h / 2 }, 1 / 1.25)} title="Уменьшить" aria-label="Уменьшить"><ZoomOut size={19} /></button>
-          <button className="sketch-zoom-value" onClick={() => zoomAt({ x: size.w / 2, y: size.h / 2 }, 1 / k)} title="Масштаб 100%">{Math.round(k * 100)}%</button>
+          <button className="sketch-zoom-value" onClick={() => zoomAt({ x: size.w / 2, y: size.h / 2 }, base / k)} title="Масштаб 100%">{Math.round(k / base * 100)}%</button>
           <button className="sketch-icon-btn" onClick={() => zoomAt({ x: size.w / 2, y: size.h / 2 }, 1.25)} title="Увеличить" aria-label="Увеличить"><ZoomIn size={19} /></button>
           <button className="sketch-icon-btn" onClick={() => fitView()} title="Показать весь чертёж" aria-label="Показать весь чертёж"><Maximize size={18} /></button>
         </div>
@@ -637,10 +746,12 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
           <g transform={`translate(${view.x} ${view.y}) scale(${k})`}>
             <rect x={visible.x} y={visible.y} width={visible.w} height={visible.h} fill="url(#sketch-grid)" />
             {elements.map((el) => (textEdit?.id === el.id
-              ? (textEdit.field === 'label' ? <SketchShape key={el.id} el={el} hideLabel /> : null)
+              ? (textEdit.field === 'label' || textEdit.field === 'callout' ? <SketchShape key={el.id} el={el} hideLabel /> : null)
               : <SketchShape key={el.id} el={el} />))}
+            {textEdit?.pending && <SketchShape el={textEdit.pending} hideLabel />}
             {draft && <SketchShape el={draft} />}
-            {selected && !readOnly && <SelectionOverlay el={selected} k={k} />}
+            {!readOnly && selectedEls.map((el) => <SelectionOverlay key={el.id} el={el} k={k} handles={!multi} />)}
+            <Marquee box={marquee} k={k} />
             <SnapMark snap={snapMark} k={k} />
           </g>
         </svg>
@@ -666,16 +777,31 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
 
       {!readOnly && <aside className="sketch-panel" aria-label="Свойства">
         <div className="sketch-panel-head">
-          <small>{selected ? 'Выбрано' : kind ? 'Новая фигура' : 'Свойства'}</small>
-          <b>{kind ? TYPE_NAMES[kind] : TOOLS.find((t) => t.id === tool)?.title || TOOLS.find((t) => t.id === tool)?.label}</b>
+          <small>{selected || multi ? 'Выбрано' : kind ? 'Новая фигура' : 'Свойства'}</small>
+          <b>{multi ? `${selectedEls.length} ${plural(selectedEls.length, 'фигура', 'фигуры', 'фигур')}` : kind ? TYPE_NAMES[kind] : TOOLS.find((t) => t.id === tool)?.title || TOOLS.find((t) => t.id === tool)?.label}</b>
         </div>
-        {kind ? <>
+        {tool === 'select' && <div className="sketch-field">
+          <button className={'sketch-pick-toggle' + (additive ? ' on' : '')} onClick={() => setAdditive((v) => !v)} aria-pressed={additive} title="Нажатия по фигурам добавляют их к выбору (как Shift)"><BoxSelect size={16} /><span>Добавлять к выбору</span></button>
+          {elements.length > 0 && <button className="secondary-button sketch-wide" onClick={() => setSelectedIds(elements.map((el) => el.id))}>Выбрать всё</button>}
+        </div>}
+        {kind === 'multi' ? <>
+          <div className="sketch-field">
+            <span>Цвет</span>
+            <div className="sketch-swatches">{COLORS.map((c) => <button key={c.value} className={'sketch-swatch' + (selectedEls.every((el) => el.color === c.value) ? ' on' : '')} style={{ '--swatch': c.value }} onClick={() => setProp('color', c.value)} aria-label={c.name} title={c.name} />)}</div>
+          </div>
+          {selectedEls.some((el) => el.type !== 'text') && <div className="sketch-field">
+            <span>Толщина</span>
+            <div className="sketch-segmented">{WIDTHS.map((w) => <button key={w.value} className={selectedEls.every((el) => el.type === 'text' || el.width === w.value) ? 'on' : ''} onClick={() => setProp('width', w.value)} title={w.name}><i style={{ height: Math.max(2, w.value * 0.8) }} /></button>)}</div>
+          </div>}
+          <small className="sketch-note">Перетащите любую из выбранных фигур — сдвинутся все вместе.</small>
+          <button className="sketch-delete" onClick={deleteSelected}><Trash2 size={16} />Удалить выбранные</button>
+        </> : kind ? <>
           <div className="sketch-field">
             <span>Цвет</span>
             <div className="sketch-swatches">{COLORS.map((c) => <button key={c.value} className={'sketch-swatch' + (props.color === c.value ? ' on' : '')} style={{ '--swatch': c.value }} onClick={() => setProp('color', c.value)} aria-label={c.name} title={c.name} />)}</div>
           </div>
           {kind !== 'text' && <div className="sketch-field">
-            <span>Толщина</span>
+            <span>{kind === 'callout' ? 'Толщина стрелки' : 'Толщина'}</span>
             <div className="sketch-segmented">{WIDTHS.map((w) => <button key={w.value} className={props.width === w.value ? 'on' : ''} onClick={() => setProp('width', w.value)} title={w.name}><i style={{ height: Math.max(2, w.value * 0.8) }} /></button>)}</div>
           </div>}
           {(kind === 'line' || kind === 'dim') && <label className="sketch-check"><input type="checkbox" checked={!!props.dash} onChange={(event) => setProp('dash', event.target.checked)} /><span>Пунктир {kind === 'line' && <small>— например, для стыка</small>}</span></label>}
@@ -695,7 +821,27 @@ export default function SketchEditor({ initialSketch, title, subtitle, readOnly 
               <div className="sketch-corners-preview" style={{ borderRadius: ['tl', 'tr', 'br', 'bl'].map((c) => (props.corners?.[c] ? '16px' : '2px')).join(' ') }} />
               {['tl', 'tr', 'bl', 'br'].map((c) => <button key={c} className={`sketch-corner ${c}${props.corners?.[c] ? ' on' : ''}`} onClick={() => setProp('corners', { ...props.corners, [c]: !props.corners?.[c] })} aria-pressed={!!props.corners?.[c]} aria-label={`Скруглить ${CORNER_NAMES[c]} угол`} title={`Скруглить ${CORNER_NAMES[c]} угол`} />)}
             </div>
-            <label className="sketch-inline">Радиус <input className="sketch-input" type="number" min="1" step="5" value={props.radius ?? 40} onChange={(event) => setProp('radius', Math.max(1, Number(event.target.value) || 1))} /></label>
+            <label className="sketch-inline">Скругление на листе <input className="sketch-input" type="number" min="1" step="5" value={props.radius ?? 40} onChange={(event) => setProp('radius', Math.max(1, Number(event.target.value) || 1))} /></label>
+          </div>}
+          {kind === 'rect' && selected && <div className="sketch-field">
+            <span>Радиус для производства, мм</span>
+            {['tl', 'tr', 'bl', 'br'].some((c) => selected.corners?.[c])
+              ? <div className="sketch-radius-grid">{['tl', 'tr', 'bl', 'br'].map((c) => (selected.corners?.[c]
+                ? <label key={c} className="sketch-radius-item"><small>{CORNER_LABELS[c]}</small><span className="sketch-radius-input"><b>r</b><input className="sketch-input" inputMode="decimal" value={String(selected.radiusLabels?.[c] || '').replace(/^[rR]/, '')} placeholder="10" aria-label={`Радиус: ${CORNER_NAMES[c]} угол`} onChange={(event) => setRadiusLabel(c, event.target.value)} /></span></label>
+                : <span key={c} className="sketch-radius-item off"><small>{CORNER_LABELS[c]}</small><i>не скруглён</i></span>))}</div>
+              : <small>Сначала отметьте скруглённые углы выше.</small>}
+            <small>Число появится у угла на чертеже, например «r10».</small>
+          </div>}
+          {kind === 'hatch' && <div className="sketch-field">
+            <span>Штрихи</span>
+            <div className="sketch-segmented">{HATCH_STEPS.map((s) => <button key={s.value} className={(props.spacing || 30) === s.value ? 'on' : ''} onClick={() => setProp('spacing', s.value)}>{s.name}</button>)}</div>
+            <button className="secondary-button sketch-wide" onClick={() => setProp('side', (props.side === -1 ? 1 : -1))}><MoveHorizontal size={15} />На другую сторону</button>
+          </div>}
+          {kind === 'callout' && <div className="sketch-field">
+            <span>Размер текста</span>
+            <div className="sketch-segmented">{TEXT_SIZES.map((s) => <button key={s.value} className={(props.size || 26) === s.value ? 'on' : ''} onClick={() => setProp('size', s.value)}>{s.name}</button>)}</div>
+            {selected && <button className="secondary-button sketch-wide" onClick={() => openCallout(selected)}><Type size={15} />Изменить текст</button>}
+            {!selected && <small>Двойное нажатие на сноску — изменить текст.</small>}
           </div>}
           {kind === 'text' && <div className="sketch-field">
             <span>Размер текста</span>

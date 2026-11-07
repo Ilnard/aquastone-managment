@@ -1,0 +1,17 @@
+.install-dates{display:grid;gap:8px}
+.install-dates-list{display:grid;gap:6px}
+.install-date{display:flex;align-items:center;gap:9px;min-height:42px;padding:6px 6px 6px 11px;border:1px solid #e6ebe6;border-radius:6px;background:#fbfcfb}
+.install-date>svg{flex:none;color:#6f9a7b}
+.install-date>span{flex:1;display:flex;flex-direction:column;gap:2px}
+.install-date b{font-size:10px;font-weight:600;color:#3d4840}
+.install-date small{font-size:8px;color:#9aa39c}
+.install-date button{flex:none;width:30px;height:30px;border:0;border-radius:5px;background:transparent;color:#9aa39c;display:grid;place-items:center}
+.install-date button:hover{background:#fbebe7;color:#b24e3f}
+.install-dates-empty{margin:0;font-size:10px;color:#9aa39c}
+.install-dates-total{font-size:9px;color:#6f8a76}
+.install-dates-add{display:flex;gap:8px;align-items:center}
+.install-dates-add .inline-edit{flex:1;min-width:0}
+.install-dates-add .secondary-button{height:35px;flex:none}
+
+.primary-button.is-blocked{background:#9fb3a7;border-color:#9fb3a7;cursor:not-allowed}
+.primary-button.is-blocked:hover{background:#9fb3a7}

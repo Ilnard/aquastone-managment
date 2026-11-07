@@ -111,3 +111,15 @@
   .sketch-toggle span,.sketch-export span{display:none}
   .sketch-hint{display:none}
 }
+
+/* Несколько фигур, радиусы углов */
+.sketch-note{font-size:11px;color:#8a958c;line-height:1.4}
+.sketch-pick-toggle{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:38px;border:1.5px solid #dfe5de;border-radius:8px;background:#fff;color:#4f5b53;font-size:13px;font-weight:600}
+.sketch-pick-toggle.on{border-color:#3a7bd5;background:#eaf2fd;color:#2459a8}
+.sketch-radius-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sketch-radius-item{display:flex;flex-direction:column;gap:4px}
+.sketch-radius-item small{font-size:11px;color:#7d887f}
+.sketch-radius-item.off i{font-size:11px;color:#b3bbb4;font-style:normal;padding:8px 0}
+.sketch-radius-input{display:flex;align-items:center;gap:4px}
+.sketch-radius-input b{font-size:14px;color:#59645c}
+.sketch-radius-input .sketch-input{width:100%;min-width:0}

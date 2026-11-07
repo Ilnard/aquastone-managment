@@ -1,0 +1,40 @@
+/* Изделия процесса */
+.items-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #f0f2ef; }
+.items-section-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.items-section-head h4 { margin: 0; font: 700 11px Manrope, sans-serif; color: #303a33; }
+.items-section-head small { font-size: 9px; color: #969f98; }
+.items-list { display: grid; border: 1px solid #edf0ed; border-radius: 6px; overflow: hidden; }
+.items-row { display: grid; grid-template-columns: 26px minmax(120px, 1.3fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(80px, .8fr); gap: 10px; align-items: center; padding: 9px 12px; font-size: 10px; color: #4c574e; border-top: 1px solid #f0f2ef; }
+.items-row:first-child { border-top: 0; }
+.items-row b { font-weight: 600; color: #323b35; }
+.items-row .muted { color: #a3aaa4; }
+.items-head { background: #fafbf9; font-size: 8px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: #9ba29d; padding-top: 7px; padding-bottom: 7px; }
+.items-num { width: 20px; height: 20px; border-radius: 50%; background: #edf4ef; color: #4a775b; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
+.items-empty { margin: 0; font-size: 10px; color: #969f98; }
+
+.items-editor { display: grid; gap: 10px; }
+.item-card { position: relative; margin: 0; border: 1px solid #e6ebe6; border-radius: 7px; padding: 12px 12px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; background: #fcfdfc; min-width: 0; }
+.item-card legend { padding: 0 6px; margin-left: -4px; font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #6d8a72; }
+.item-card .form-field input:disabled { background: #f6f7f5; color: #a9b0aa; }
+.item-remove { position: absolute; top: -9px; right: 8px; width: 24px; height: 24px; border: 1px solid #ecdcd8; border-radius: 6px; background: #fff; color: #b24e3f; display: grid; place-items: center; }
+.item-remove:hover { background: #fbefec; }
+.item-add { justify-self: start; height: 32px; padding: 0 11px; border: 1px dashed #c9d8cc; border-radius: 6px; background: #f7faf7; color: #3f6e4f; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+.item-add:hover { background: #eef5ef; }
+
+.items-glue { display: grid; gap: 8px; }
+.items-glue-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); gap: 12px; align-items: center; padding: 9px 11px; border: 1px solid #edf0ed; border-radius: 6px; }
+.items-glue-row b { display: block; font-size: 10px; font-weight: 600; color: #323b35; }
+.items-glue-row small { font-size: 9px; color: #8c958e; }
+
+/* Таблица процессов: несколько изделий */
+.material-cell .material-line + .material-line { margin-top: 5px; }
+.material-cell .material-line { display: flex; flex-direction: column; gap: 3px; }
+.material-cell .more-items { font-size: 9px; color: #6d8a72; font-weight: 600; }
+
+@media (max-width: 600px) {
+  .items-row { grid-template-columns: 22px 1fr 1fr; }
+  .items-row > :nth-child(4), .items-row > :nth-child(5) { grid-column: 2 / -1; }
+  .items-head { display: none; }
+  .item-card { grid-template-columns: 1fr; }
+  .items-glue-row { grid-template-columns: 1fr; }
+}

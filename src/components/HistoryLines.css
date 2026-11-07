@@ -1,0 +1,9 @@
+.history-fields{margin:4px 0;font-size:10px;color:#69736c}
+.history-changes{list-style:none;margin:6px 0;padding:0;display:grid;gap:4px}
+.history-changes li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:10px;line-height:1.45}
+.history-change-field{color:#8a948c;min-width:110px}
+.history-change-field::first-letter{text-transform:uppercase}
+.history-change-value{display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px;color:#3c463f;min-width:0;overflow-wrap:anywhere}
+.history-change-value s{color:#a7aea8;text-decoration-color:#d3d9d4}
+.history-change-value svg{color:#9aa39c;flex:none}
+.history-change-value b{font-weight:600;color:#2f3a32}

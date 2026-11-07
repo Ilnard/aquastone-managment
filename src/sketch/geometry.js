@@ -5,12 +5,12 @@
 export const SKETCH_FONT = 'Arial, Helvetica, sans-serif'
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
-export const r1 = (value) => Math.round(value * 10) / 10
+const r1 = (value) => Math.round(value * 10) / 10
 export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 export const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 export const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-export function closestOnSegment(p, a, b) {
+function closestOnSegment(p, a, b) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   const len2 = dx * dx + dy * dy
@@ -18,18 +18,18 @@ export function closestOnSegment(p, a, b) {
   const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len2, 0, 1)
   return { x: a.x + t * dx, y: a.y + t * dy }
 }
-export const distToSegment = (p, a, b) => dist(p, closestOnSegment(p, a, b))
+const distToSegment = (p, a, b) => dist(p, closestOnSegment(p, a, b))
 
 export function normRect(el) {
   return { ...el, x: Math.min(el.x, el.x + el.w), y: Math.min(el.y, el.y + el.h), w: Math.abs(el.w), h: Math.abs(el.h) }
 }
-export function rectCorners(el) {
+function rectCorners(el) {
   const { x, y, w, h } = normRect(el)
   return [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }]
 }
 
 export const textLines = (el) => String(el.text || '').split('\n')
-export function textBox(el) {
+function textBox(el) {
   const lines = textLines(el)
   const longest = Math.max(1, ...lines.map((line) => line.length))
   return { x: el.x, y: el.y, w: longest * el.size * 0.58, h: lines.length * el.size * 1.2 }
@@ -70,10 +70,70 @@ export function dimGeometry(el) {
   return { u, n, nOut, a, b, ext1, ext2, center, labelPos, angle, size, labelW, len }
 }
 
+/** Сноска: стрелка от точки (x1,y1) к излому (x2,y2), дальше — полочка с текстом. */
+export function calloutGeometry(el) {
+  const size = el.size || 24
+  const lines = String(el.text || '').split('\n')
+  const textW = Math.max(1, ...lines.map((line) => line.length)) * size * 0.58
+  const dir = el.x2 >= el.x1 ? 1 : -1
+  const shelf = Math.max(40, textW + 14)
+  const tip = { x: el.x1, y: el.y1 }
+  const elbow = { x: el.x2, y: el.y2 }
+  const shelfEnd = { x: el.x2 + dir * shelf, y: el.y2 }
+  const textX = el.x2 + dir * 7
+  const baseline = el.y2 - size * 0.28 - (el.width || 0) / 2
+  const top = baseline - size * 0.95 - (lines.length - 1) * size * 1.2
+  const box = { x1: Math.min(textX, textX + dir * textW), x2: Math.max(textX, textX + dir * textW), y1: top, y2: el.y2 }
+  return { tip, elbow, shelfEnd, dir, size, lines, textW, textX, baseline, box }
+}
+
+/** «Ёлочка» (обозначение стены / примыкания): линия с косыми штрихами с одной стороны. */
+export function hatchGeometry(el) {
+  const dx = el.x2 - el.x1
+  const dy = el.y2 - el.y1
+  const len = Math.hypot(dx, dy) || 1
+  const u = { x: dx / len, y: dy / len }
+  const n = { x: -u.y, y: u.x }
+  const side = el.side === -1 ? -1 : 1
+  const spacing = el.spacing || 30
+  const tick = el.tick || Math.max(30, (el.width || 4) * 8)
+  // Штрих идёт под 45° вбок и вперёд по линии.
+  const t = { x: (-n.x * side + u.x) / Math.SQRT2, y: (-n.y * side + u.y) / Math.SQRT2 }
+  const ticks = []
+  for (let s = 0; s <= len - spacing * 0.5 || (ticks.length === 0 && s === 0); s += spacing) {
+    const a = { x: el.x1 + u.x * s, y: el.y1 + u.y * s }
+    ticks.push([a, { x: a.x + t.x * tick, y: a.y + t.y * tick }])
+    if (len < spacing * 0.5) break
+  }
+  return { u, n, len, ticks }
+}
+
+/** Подписи радиусов скругления у углов прямоугольника: «r10». */
+export function cornerLabels(el) {
+  const labels = el.radiusLabels || {}
+  const c = el.corners || {}
+  const { x, y, w, h } = normRect(el)
+  const size = el.labelSize || 20
+  const gap = 6 + (el.width || 0) / 2
+  const pos = {
+    tl: { x: x - gap, y: y - gap, anchor: 'end' },
+    tr: { x: x + w + gap, y: y - gap, anchor: 'start' },
+    bl: { x: x - gap, y: y + h + gap + size * 0.8, anchor: 'end' },
+    br: { x: x + w + gap, y: y + h + gap + size * 0.8, anchor: 'start' },
+  }
+  return Object.entries(pos)
+    .filter(([corner]) => c[corner] && String(labels[corner] || '').trim())
+    .map(([corner, p]) => {
+      const value = String(labels[corner]).trim()
+      return { corner, ...p, size, text: /^[rR]/.test(value) ? value : `r${value}` }
+    })
+}
+
 /** Точки, к которым «магнитятся» другие фигуры. */
 export function keyPoints(el) {
   switch (el.type) {
     case 'line': return [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }, { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }]
+    case 'hatch': return [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }]
     case 'rect': return rectCorners(el)
     case 'circle':
     case 'cross': return [{ x: el.cx, y: el.cy }]
@@ -82,12 +142,14 @@ export function keyPoints(el) {
 }
 /** Точки фигуры, которые при перетаскивании ищут, к чему примагнититься. */
 export function anchorPoints(el) {
-  return el.type === 'dim' ? [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }] : keyPoints(el)
+  if (el.type === 'dim' || el.type === 'hatch') return [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }]
+  if (el.type === 'callout') return [{ x: el.x1, y: el.y1 }]
+  return keyPoints(el)
 }
 
 /** Отрезки (края), к которым тоже можно примагнититься. */
-export function segments(el) {
-  if (el.type === 'line') return [[{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }]]
+function segments(el) {
+  if (el.type === 'line' || el.type === 'hatch') return [[{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }]]
   if (el.type === 'rect') { const c = rectCorners(el); return c.map((p, i) => [p, c[(i + 1) % 4]]) }
   return []
 }
@@ -96,7 +158,28 @@ export function bbox(el) {
   const pad = (el.width || 0) / 2
   switch (el.type) {
     case 'line': return { x1: Math.min(el.x1, el.x2) - pad, y1: Math.min(el.y1, el.y2) - pad, x2: Math.max(el.x1, el.x2) + pad, y2: Math.max(el.y1, el.y2) + pad }
-    case 'rect': { const n = normRect(el); return { x1: n.x - pad, y1: n.y - pad, x2: n.x + n.w + pad, y2: n.y + n.h + pad } }
+    case 'rect': {
+      const n = normRect(el)
+      const box = { x1: n.x - pad, y1: n.y - pad, x2: n.x + n.w + pad, y2: n.y + n.h + pad }
+      for (const label of cornerLabels(el)) {
+        const w = label.text.length * label.size * 0.58
+        const lx = label.anchor === 'end' ? label.x - w : label.x
+        box.x1 = Math.min(box.x1, lx); box.x2 = Math.max(box.x2, lx + w)
+        box.y1 = Math.min(box.y1, label.y - label.size); box.y2 = Math.max(box.y2, label.y + label.size * 0.2)
+      }
+      return box
+    }
+    case 'callout': {
+      const g = calloutGeometry(el)
+      const xs = [g.tip.x, g.elbow.x, g.shelfEnd.x, g.box.x1, g.box.x2]
+      const ys = [g.tip.y, g.elbow.y, g.box.y1, g.box.y2]
+      return { x1: Math.min(...xs) - pad, y1: Math.min(...ys) - pad, x2: Math.max(...xs) + pad, y2: Math.max(...ys) + pad }
+    }
+    case 'hatch': {
+      const g = hatchGeometry(el)
+      const pts = [{ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }, ...g.ticks.map(([, b]) => b)]
+      return { x1: Math.min(...pts.map((p) => p.x)) - pad, y1: Math.min(...pts.map((p) => p.y)) - pad, x2: Math.max(...pts.map((p) => p.x)) + pad, y2: Math.max(...pts.map((p) => p.y)) + pad }
+    }
     case 'circle': return { x1: el.cx - el.r - pad, y1: el.cy - el.r - pad, x2: el.cx + el.r + pad, y2: el.cy + el.r + pad }
     case 'cross': { const s = el.size / 2 + pad; return { x1: el.cx - s, y1: el.cy - s, x2: el.cx + s, y2: el.cy + s } }
     case 'text': { const b = textBox(el); return { x1: b.x, y1: b.y, x2: b.x + b.w, y2: b.y + b.h } }
@@ -132,6 +215,15 @@ export function hitTest(el, p, tol, fill = false) {
   const pad = tol + (el.width || 0) / 2
   switch (el.type) {
     case 'line': return distToSegment(p, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= pad
+    case 'hatch': {
+      if (distToSegment(p, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= pad) return true
+      return hatchGeometry(el).ticks.some(([a, b]) => distToSegment(p, a, b) <= pad)
+    }
+    case 'callout': {
+      const g = calloutGeometry(el)
+      if (distToSegment(p, g.tip, g.elbow) <= pad || distToSegment(p, g.elbow, g.shelfEnd) <= pad) return true
+      return p.x >= g.box.x1 - tol && p.x <= g.box.x2 + tol && p.y >= g.box.y1 - tol && p.y <= g.box.y2 + tol
+    }
     case 'rect': {
       const n = normRect(el)
       if (fill && p.x >= n.x && p.x <= n.x + n.w && p.y >= n.y && p.y <= n.y + n.h) return true
@@ -211,6 +303,8 @@ export function orthoSnap(anchor, p) {
 export function translate(el, dx, dy) {
   switch (el.type) {
     case 'line':
+    case 'hatch':
+    case 'callout':
     case 'dim': return { ...el, x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy }
     case 'rect':
     case 'text': return { ...el, x: el.x + dx, y: el.y + dy }
@@ -224,7 +318,9 @@ export function translate(el, dx, dy) {
 /** Ручки редактирования выделенной фигуры. */
 export function handlesOf(el) {
   switch (el.type) {
-    case 'line': return [{ id: 'p1', x: el.x1, y: el.y1 }, { id: 'p2', x: el.x2, y: el.y2 }]
+    case 'line':
+    case 'hatch':
+    case 'callout': return [{ id: 'p1', x: el.x1, y: el.y1 }, { id: 'p2', x: el.x2, y: el.y2 }]
     case 'dim': { const g = dimGeometry(el); return [{ id: 'p1', x: el.x1, y: el.y1 }, { id: 'p2', x: el.x2, y: el.y2 }, { id: 'off', x: g.center.x, y: g.center.y }] }
     case 'rect': return rectCorners(el).map((p, i) => ({ id: i, ...p }))
     case 'circle': return [{ id: 'r', x: el.cx + el.r, y: el.cy }]

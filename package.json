@@ -10,6 +10,8 @@
     "start": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
     "deploy": "node scripts/deploy.js",
+    "seed": "node --env-file-if-exists=.env scripts/seed-processes.js",
+    "reset-password": "node --env-file-if-exists=.env scripts/reset-password.js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
@@ -20,6 +22,7 @@
     "pg": "^8.23.1",
     "react": "latest",
     "react-dom": "latest",
+    "react-router": "^7.18.5",
     "vite": "latest"
   },
   "devDependencies": {

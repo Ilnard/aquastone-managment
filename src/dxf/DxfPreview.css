@@ -1,0 +1,36 @@
+/* Предпросмотр DXF во вкладке «Проектирование» */
+.dxf-preview{margin-top:12px;border:1px solid #e3e8e2;border-radius:8px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.dxf-preview.fullscreen{position:fixed;inset:0;z-index:40;margin:0;border-radius:0;border:0}
+.dxf-toolbar{height:42px;flex:none;display:flex;align-items:center;gap:2px;padding:0 6px 0 12px;border-bottom:1px solid #edf0ed;background:#fafbf9}
+.dxf-name{flex:1;min-width:0;font-size:10px;font-weight:600;color:#4f5a52;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dxf-preview.fullscreen .dxf-name{font-size:13px}
+.dxf-toolbar button,.dxf-toolbar a{width:34px;height:34px;flex:none;border:0;border-radius:6px;background:transparent;color:#5f6a62;display:grid;place-items:center}
+.dxf-toolbar button:hover,.dxf-toolbar a:hover{background:#eef2ed}
+.dxf-canvas{position:relative;height:420px;background:#fdfdfc;background-image:linear-gradient(#f1f4f0 1px,transparent 1px),linear-gradient(90deg,#f1f4f0 1px,transparent 1px);background-size:24px 24px}
+.dxf-preview.fullscreen .dxf-canvas{flex:1;height:auto}
+.dxf-canvas svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.dxf-canvas svg:active{cursor:grabbing}
+.dxf-message{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;font-size:11px;line-height:1.5;color:#8a948c}
+.dxf-footer{padding:8px 12px;border-top:1px solid #edf0ed;font-size:9px;color:#9aa39c;line-height:1.5}
+.dxf-preview.fullscreen .dxf-footer{font-size:11px}
+
+/* Поля файлов чертежей */
+.design-files{display:grid;gap:22px;margin-top:20px}
+.design-field{border-top:1px solid #edf0ed;padding-top:14px}
+.design-field:first-child{border-top:0;padding-top:0}
+.design-field-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.design-field-head h4{margin:0;font:600 11px Manrope,sans-serif;color:#414b44}
+.design-field-head p{margin:4px 0 0;font-size:9px;color:#9aa39c}
+.design-field-head .add-file-button{margin:0;padding:7px 10px;font-size:9px;cursor:pointer;white-space:nowrap}
+.design-field-head input[type=file]{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap}
+.design-file-list{display:grid;gap:6px;margin-top:10px}
+.design-file{display:flex;align-items:center;gap:8px;border:1px solid #edf0ed;border-radius:6px;padding:8px 10px;font-size:10px;color:#5e6a61;background:#fbfcfb}
+.design-file.selected{border-color:#b9d3c1;background:#f1f7f2}
+.design-file>svg{flex:none;color:#7b8f80}
+.design-file a,.design-file .design-file-name{flex:1;min-width:0;color:#3f6a4c;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:none;padding:0;text-align:left;font:inherit;cursor:pointer}
+.design-file a:hover,.design-file .design-file-name:hover{text-decoration:underline}
+.design-file small{color:#9aa39c;font-size:9px;white-space:nowrap}
+.design-file button.design-file-remove,.design-file a.design-file-download{flex:none;width:26px;height:26px;border:0;border-radius:5px;background:transparent;color:#8d978f;display:grid;place-items:center;padding:0}
+.design-file button.design-file-remove:hover{background:#fbebe7;color:#b24e3f}
+.design-file a.design-file-download:hover{background:#eef2ed}
+.design-empty{margin:9px 0 0;color:#9aa39c;font-size:9px}

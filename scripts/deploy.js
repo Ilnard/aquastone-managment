@@ -92,6 +92,9 @@ async function main() {
     env: { ...process.env, PAGES_BASE_PATH: pagesBasePath, VITE_STATIC_DEMO: 'true' },
   })
   if (build.status !== 0) throw new Error('Сборка GitHub Pages не удалась.')
+  // Адреса без «#» (/calendar, /processes/1702): GitHub Pages отдаёт 404.html для неизвестных путей —
+  // кладём туда тот же index.html, и приложение само открывает нужный раздел.
+  await fs.copyFile(path.join(repoRoot, 'dist', 'index.html'), path.join(repoRoot, 'dist', '404.html'))
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aquastone-pages-'))
   const worktreePath = path.join(tempRoot, deployBranch)

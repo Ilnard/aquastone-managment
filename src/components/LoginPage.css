@@ -1,0 +1,13 @@
+.login-screen{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(1200px 600px at 20% 0%,#e7f1ea 0,transparent 60%),#f4f6f3}
+.login-card{width:min(400px,100%);background:#fff;border:1px solid #e3e8e2;border-radius:14px;padding:28px 26px 24px;box-shadow:0 18px 50px #15241d14;display:grid;gap:14px}
+.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.login-card h1{margin:0;font:700 24px Manrope,sans-serif;letter-spacing:-.6px;color:#25302a}
+.login-card>p{margin:-6px 0 4px;font-size:11px;line-height:1.5;color:#7b867e}
+.login-card .form-field input{height:42px;font-size:14px}
+.login-password{position:relative;display:block}
+.login-password input{padding-right:44px!important}
+.login-password button{position:absolute;right:4px;top:4px;width:34px;height:34px;border:0;border-radius:6px;background:transparent;color:#7b867e;display:grid;place-items:center}
+.login-password button:hover{background:#f1f4f0}
+.login-error{padding:10px 12px;border-radius:7px;background:#fdf0ed;color:#a9493b;font-size:11px;line-height:1.4}
+.login-warning{padding:10px 12px;border-radius:7px;background:#fbf4e6;color:#8f6c33;font-size:11px;line-height:1.4}
+.login-submit{height:44px!important;font-size:13px!important;margin-top:4px}

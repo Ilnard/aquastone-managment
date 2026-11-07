@@ -1,0 +1,27 @@
+/* Обзор → «Произведено за месяц» */
+.month-stats { margin-top: 18px; }
+.month-stats-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.month-stats-head p { margin: 4px 0 0; font-size: 10px; color: #929b94; }
+.month-switch { display: flex; align-items: center; gap: 4px; }
+.month-switch button { width: 32px; height: 32px; border: 1px solid #e3e8e3; border-radius: 6px; background: #fff; color: #5f6a62; display: grid; place-items: center; }
+.month-switch button:disabled { color: #c3c9c4; background: #fafbfa; cursor: default; }
+.month-switch select { height: 32px; min-width: 150px; border: 1px solid #e3e8e3; border-radius: 6px; background: #fff; padding: 0 10px; font-size: 12px; font-weight: 600; color: #2f3a33; }
+.month-tiles { margin: 16px 0 14px; }
+.month-tile { height: 112px; }
+.month-tile .stat-label { left: 50px; }
+.month-total { background: #f6faf6; border-color: #dfeadf; }
+.month-total .stat-number { color: #2f5d42; }
+.month-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0 8px; border-top: 1px solid #f0f2ef; font-size: 11px; color: #3f4a42; }
+.month-list-head .aq-link-button { display: inline-flex; align-items: center; gap: 5px; }
+.month-table { min-width: 720px; }
+.month-table td { height: auto; padding-top: 10px; padding-bottom: 10px; vertical-align: top; }
+.month-table .process-cell { min-width: 170px; }
+.month-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; white-space: normal; }
+.month-items li { display: flex; flex-direction: column; gap: 2px; }
+.month-items b { font-size: 10px; font-weight: 600; color: #323b35; }
+.month-items span { font-size: 9px; color: #8c958e; }
+.month-date { font-weight: 600; color: #3f4a42; }
+.month-table .muted { color: #9aa19b; font-weight: 400; }
+.month-table tbody tr:focus-visible { outline: 2px solid #a5d6c0; outline-offset: -2px; }
+.month-empty { height: 140px; }
+@media (max-width: 600px) { .month-switch { width: 100%; } .month-switch select { flex: 1; } }
