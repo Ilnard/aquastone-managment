@@ -1,0 +1,25 @@
+# systemd: сервер API системы управления. Перезапускается сам при сбое и после перезагрузки.
+#   sudo cp deploy/aquastone-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now aquastone-api
+#   журнал (здесь же логин и пароль директора при первом запуске): journalctl -u aquastone-api -f
+
+[Unit]
+Description=AquaStone API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=aquastone
+WorkingDirectory=/opt/aquastone/aquastone-managment
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --env-file-if-exists=.env server/index.js
+Restart=always
+RestartSec=3
+# Сервер пишет только в папку вложений.
+ProtectSystem=full
+ReadWritePaths=/opt/aquastone/aquastone-managment/uploads
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

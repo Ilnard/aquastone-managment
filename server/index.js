@@ -16,6 +16,7 @@ import { normalizeCompany, sortCompanies } from '../src/furniture.js'
 import { formatRussianPhone } from '../src/phone.js'
 import { REQUEST_STATUSES, normalizeContact, normalizeProject, requestSummary } from '../src/requests.js'
 import { LEGACY_ITEM_FIELDS, cleanItems, itemLine } from '../src/processItems.js'
+import { calculateEstimate, publicConfig } from './calc/estimate.js'
 
 const { Pool } = pg
 const app = express()
@@ -50,6 +51,11 @@ const pool = new Pool({
   connectionTimeoutMillis: 3000,
 })
 
+// За nginx (или прокси Vite при разработке) настоящий адрес клиента — в X-Forwarded-For.
+// Доверяем только прокси на этой же машине, иначе заголовок можно подделать и обойти ограничения попыток.
+// Если прокси стоит на другой машине, укажите его адрес в TRUST_PROXY (например 10.0.0.5).
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback')
+app.disable('x-powered-by')
 app.use(express.json({ limit: '2mb' }))
 
 let databaseReady = false
@@ -374,7 +380,7 @@ const meOf = (user) => ({ id: user.id, name: user.name, roles: user.roles, login
 
 // Защита от перебора паролей: не больше 8 неудачных попыток за 15 минут с одного адреса на один логин.
 const loginAttempts = new Map()
-const attemptKey = (req, login) => `${req.ip || req.socket?.remoteAddress || ''}|${login}`
+const attemptKey = (req, login) => `${req.ip || ''}|${login}`
 const tooManyAttempts = (key) => (loginAttempts.get(key) || []).filter((t) => Date.now() - t < 15 * 60 * 1000).length >= 8
 const noteFailure = (key) => loginAttempts.set(key, [...(loginAttempts.get(key) || []).filter((t) => Date.now() - t < 15 * 60 * 1000), Date.now()])
 
@@ -732,6 +738,33 @@ app.delete('/api/furniture/:id', ...authed, requireRole('Менеджер'), asy
   } catch (error) { next(error) }
 })
 
+// ---------- Расчёт конструктора ----------
+// Публичные: конструктор открывают клиенты без входа. Цены и коэффициенты — server/calc/pricing.js.
+const calcAttempts = new Map()
+const tooManyCalcs = (ip) => {
+  const recent = (calcAttempts.get(ip) || []).filter((t) => Date.now() - t < 60 * 1000)
+  recent.push(Date.now())
+  calcAttempts.set(ip, recent)
+  return recent.length > 120
+}
+app.get('/api/calc/config', (_req, res) => res.json(publicConfig()))
+app.post('/api/calc/estimate', (req, res, next) => {
+  try {
+    if (tooManyCalcs(req.ip || '')) return res.status(429).json({ error: 'Слишком много пересчётов подряд — подождите минуту.' })
+    const result = calculateEstimate(req.body || {})
+    if (result.error) return res.status(400).json({ error: result.error })
+    res.json(result)
+  } catch (error) { next(error) }
+})
+
+// Счётчики попыток живут в памяти — раз в 10 минут убираем устаревшие записи.
+setInterval(() => {
+  const now = Date.now()
+  for (const [map, ttl] of [[loginAttempts, 15 * 60 * 1000], [requestAttempts, 10 * 60 * 1000], [calcAttempts, 60 * 1000]]) {
+    for (const [key, times] of map) { const fresh = times.filter((t) => now - t < ttl); if (fresh.length) map.set(key, fresh); else map.delete(key) }
+  }
+}, 10 * 60 * 1000).unref()
+
 // ---------- Заявки из конструктора ----------
 const requestRow = (row) => ({
   id: Number(row.id), source: row.source, clientName: row.client_name, clientPhone: row.client_phone, author: row.author,
@@ -739,13 +772,8 @@ const requestRow = (row) => ({
   createdAt: row.created_at, updatedAt: row.updated_at,
 })
 // Защита от спама: с одного адреса — не больше 5 клиентских заявок за 10 минут.
+// Адрес клиента — req.ip (см. «trust proxy» выше): подделанный X-Forwarded-For не учитывается.
 const requestAttempts = new Map()
-// Конструктор ходит через свой прокси (Vite или nginx на этой же машине) — тогда настоящий адрес в X-Forwarded-For.
-const clientIp = (req) => {
-  const remote = req.socket?.remoteAddress || ''
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-  return forwarded && /^(::1|127\.|::ffff:127\.)/.test(remote) ? forwarded : remote
-}
 const tooManyRequests = (ip) => {
   const recent = (requestAttempts.get(ip) || []).filter((t) => Date.now() - t < 10 * 60 * 1000)
   requestAttempts.set(ip, recent)
@@ -762,10 +790,21 @@ app.post('/api/requests', requireDatabase, async (req, res, next) => {
     const staff = user && hasRight(user, 'Менеджер') ? user : null
     const { value: project, error: projectError } = normalizeProject(req.body?.project)
     if (projectError) return res.status(400).json({ error: projectError })
+    // Стоимость и раскрой считает сервер по эскизу — цифрам из браузера не верим.
+    const calc = calculateEstimate({ ...req.body.project, variant: req.body.project.variant }, { requireThickness: true })
+    if (calc.error) return res.status(400).json({ error: calc.error })
+    if (!calc.feasible) return res.status(400).json({ error: calc.note })
+    if (calc.outside.length) return res.status(400).json({ error: 'На эскизе есть вырез вне столешницы — перетащите его на деталь или удалите.' })
+    Object.assign(project, {
+      materialTitle: calc.materialTitle, thickness: calc.thickness, form: calc.form, formTitle: calc.formTitle,
+      shapes: calc.shapes.map(({ type, name, x, y, w, h }) => ({ type, name, x, y, w, h })),
+      seams: (calc.variants.find((v) => v.id === calc.selected)?.seams || []).map(({ x1, y1, x2, y2, kind }) => ({ x1, y1, x2, y2, kind })),
+      summary: calc.summary, price: calc.price, estimate: calc.estimate,
+    })
     let contact = { name: '', phone: '' }
     if (!staff) {
       if (req.body?.website) return res.status(201).json({ id: 0 })
-      const ip = clientIp(req)
+      const ip = req.ip || ''
       if (tooManyRequests(ip)) return res.status(429).json({ error: 'Слишком много заявок подряд. Попробуйте через 10 минут или позвоните нам.' })
       const checked = normalizeContact(req.body?.contact)
       if (checked.error) return res.status(400).json({ error: checked.error })
@@ -1155,6 +1194,9 @@ app.use((error, _req, res, _next) => {
 })
 
 app.listen(port, '127.0.0.1', () => console.log(`Aquastone API listening on http://127.0.0.1:${port}`))
+if (process.env.NODE_ENV === 'production' && !secureCookie) {
+  console.warn('ВНИМАНИЕ: NODE_ENV=production, но COOKIE_SECURE не равен 1 — cookie входа уйдёт и по HTTP. Включите HTTPS и задайте COOKIE_SECURE=1.')
+}
 initializeDatabase().catch((error) => {
   startupError = error.message
   console.error('PostgreSQL connection failed:', error.message)

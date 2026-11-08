@@ -31,6 +31,14 @@ const countArg = argv.indexOf('--count')
 const COUNT = Math.min(Math.max(Number(countArg >= 0 ? argv[countArg + 1] : 36) || 36, 1), 300)
 const YES = argv.includes('--yes') || argv.includes('-y')
 
+// На рабочем сервере (NODE_ENV=production) демо-данные не создаём: скрипт стирает все процессы.
+// Отключить защиту можно только явно: ALLOW_SEED=1 npm run seed (например, на тестовом сервере).
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== '1') {
+  console.error('Отказ: это рабочий сервер (NODE_ENV=production). Демо-данные удалили бы все процессы.')
+  console.error('Если это тестовый сервер — запустите с ALLOW_SEED=1.')
+  process.exit(1)
+}
+
 // ---------- Случайности ----------
 const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1))
 const pick = (list) => list[Math.floor(Math.random() * list.length)]

@@ -11,7 +11,7 @@ const telHref = (phone) => 'tel:' + String(phone).replace(/[^\d+]/g, '')
 const projectLine = (p) => [p.formTitle, p.materialTitle, p.thickness ? `${p.thickness} мм` : null, p.decor].filter(Boolean).join(' · ')
 
 /** Эскиз из конструктора: детали столешницы, мойки, варочные панели и вырезы (размеры в мм). */
-export function RequestSketch({ shapes = [] }) {
+export function RequestSketch({ shapes = [], seams = [] }) {
   if (!shapes.length) return null
   const pad = 80
   const minX = Math.min(...shapes.map((s) => s.x)) - pad, minY = Math.min(...shapes.map((s) => s.y)) - pad
@@ -25,6 +25,7 @@ export function RequestSketch({ shapes = [] }) {
     {shapes.filter((s) => s.type !== 'rect').map((s, i) => s.type === 'circle'
       ? <circle key={'c' + i} cx={s.x + s.w / 2} cy={s.y + s.h / 2} r={Math.min(s.w, s.h) / 2} className="sketch-cut" />
       : <rect key={'c' + i} x={s.x} y={s.y} width={s.w} height={s.h} rx={s.type === 'sink' ? 60 : 16} className={'sketch-cut ' + s.type} />)}
+    {seams.map((seam, i) => <line key={'s' + i} x1={seam.x1} y1={seam.y1} x2={seam.x2} y2={seam.y2} className="sketch-seam" />)}
   </svg>
 }
 
@@ -73,13 +74,18 @@ function RequestCard({ request: r, onClose, onUpdate, onCreateProcess, onOpenPro
           {r.source === 'client' && <a className="phone-link request-phone" href={telHref(r.clientPhone)}><Phone size={14} />{r.clientPhone}</a>}
           {r.processNumber && <button type="button" className="aq-link-button" onClick={() => onOpenProcess(r.processNumber)}>Процесс #{r.processNumber} <ArrowRight size={13} /></button>}
         </div>
-        <RequestSketch shapes={p.shapes} />
+        <RequestSketch shapes={p.shapes} seams={p.seams} />
         <dl className="request-facts">
           <div><dt>Площадь деталей</dt><dd>{area(p.summary.area)}</dd></div>
           <div><dt>Комплект листов</dt><dd>{p.summary.order || '—'}{p.summary.orderDescription ? <small>{p.summary.orderDescription}</small> : null}</dd></div>
           <div><dt>Выход материала</dt><dd>{p.summary.efficiency}%</dd></div>
           <div><dt>Стыки</dt><dd>{p.summary.seams ? `${p.summary.seams} · ${p.summary.seamLength} мм` : 'без стыков'}</dd></div>
           <div className="wide"><dt>Ориентир по стоимости</dt><dd className="request-estimate">{money(r.estimate)}</dd></div>
+          {p.price && <div className="wide"><dt>Как посчитано (на сервере)</dt><dd className="request-price-lines">
+            <small>Материал: {area(p.summary.purchasedArea)} × {money(p.price.pricePerM2)}{p.price.thicknessCoefficient !== 1 ? ` × ${p.price.thicknessCoefficient} (толщина)` : ''} = {money(p.price.materialCost)}</small>
+            {p.price.cutoutsCost > 0 && <small>Вырезы: {money(p.price.cutoutsCost)}</small>}
+            {p.price.formCoefficient !== 1 && <small>Коэффициент формы × {p.price.formCoefficient}</small>}
+          </dd></div>}
         </dl>
         <ul className="request-parts">{p.shapes.map((s, i) => <li key={i}><span>{s.type === 'rect' ? s.name : SHAPE_TYPES[s.type]}</span><b>{s.w} × {s.h} мм</b></li>)}</ul>
         <label className="form-field"><span>Комментарий менеджера</span><textarea className="inline-edit" rows="2" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например: перезвонить в пятницу, уточнить мойку" /></label>

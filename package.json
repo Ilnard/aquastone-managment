@@ -12,7 +12,8 @@
     "deploy": "node scripts/deploy.js",
     "seed": "node --env-file-if-exists=.env scripts/seed-processes.js",
     "reset-password": "node --env-file-if-exists=.env scripts/reset-password.js",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test \"tests/*.test.js\""
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

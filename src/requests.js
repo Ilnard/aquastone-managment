@@ -10,11 +10,11 @@ export const SHAPE_TYPES = { rect: 'Столешница', sink: 'Мойка', h
 
 const text = (value, max = 120) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
 const num = (value, min = 0, max = 1e9) => { const n = Number(value); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0 }
-const round2 = (n) => Math.round(n * 100) / 100
 
 /**
- * Проверка проекта из конструктора: только известные поля, разумные размеры.
- * Возвращает { value } или { error }.
+ * Проверка проекта из конструктора: только известные поля (название, форма, материал, декор, эскиз).
+ * Площадь, раскрой и стоимость здесь не принимаются — их считает сервер (server/calc/estimate.js)
+ * и подставляет в заявку сам. Возвращает { value } или { error }.
  */
 export function normalizeProject(input = {}) {
   if (!input || typeof input !== 'object') return { error: 'Нет данных проекта.' }
@@ -24,29 +24,20 @@ export function normalizeProject(input = {}) {
     .filter((s) => s && SHAPE_TYPES[s.type])
     .map((s) => ({ type: s.type, name: text(s.name, 60) || SHAPE_TYPES[s.type], x: Math.round(num(s.x, 0, 20000)), y: Math.round(num(s.y, 0, 20000)), w: Math.round(num(s.w, 1, 20000)), h: Math.round(num(s.h, 1, 20000)) }))
   if (!shapes.some((s) => s.type === 'rect')) return { error: 'На эскизе нет ни одной детали столешницы.' }
-  const summary = input.summary || {}
   return {
     value: {
       title: text(input.title, 80),
       form: CONSTRUCTOR_FORMS[input.form] ? input.form : null,
       formTitle: CONSTRUCTOR_FORMS[input.form] || '',
       material,
-      materialTitle: text(input.materialTitle, 60) || CONSTRUCTOR_MATERIALS[material],
+      materialTitle: CONSTRUCTOR_MATERIALS[material],
       decor: text(input.decor, 60),
       decorCode: text(input.decorCode, 30),
       thickness: Math.round(num(input.thickness, 0, 100)) || null,
       shapes,
-      summary: {
-        area: round2(num(summary.area, 0, 1000)),
-        purchasedArea: round2(num(summary.purchasedArea, 0, 1000)),
-        order: text(summary.order, 60),
-        orderDescription: text(summary.orderDescription, 120),
-        efficiency: Math.round(num(summary.efficiency, 0, 100)),
-        variant: text(summary.variant, 60),
-        seams: Math.round(num(summary.seams, 0, 100)),
-        seamLength: Math.round(num(summary.seamLength, 0, 100000)),
-      },
-      estimate: Math.round(num(input.estimate, 0, 100000000)),
+      // Заполняет сервер по своему расчёту.
+      summary: { area: 0, purchasedArea: 0, order: '', orderDescription: '', efficiency: 0, variant: '', seams: 0, seamLength: 0 },
+      estimate: 0,
     },
   }
 }

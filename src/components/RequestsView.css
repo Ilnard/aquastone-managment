@@ -44,3 +44,5 @@
   .request-row .request-price { grid-column: 1 / -1; }
   .request-facts { grid-template-columns: 1fr 1fr; }
 }
+.sketch-seam{stroke:#d94132;stroke-width:14;stroke-dasharray:40 24;fill:none}
+.request-price-lines{display:grid;gap:2px}.request-price-lines small{display:block;font-size:11px;color:#6f7a72;font-weight:500}
